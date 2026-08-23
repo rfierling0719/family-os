@@ -9,13 +9,13 @@
   ],
   "keep_vars": true,
 
-  "vars": {
-    env.GOOGLE_CLIENT_ID ("YOUR_FULL_GOOGLE_CLIENT_ID.apps.googl...")
-    "GOOGLE_REDIRECT_URI": "https://family-os.r-fierling.workers.dev/api/google/auth/callback",
-    "GOOGLE_CALENDAR_SCOPES": "https://www.googleapis.com/auth/calendar.events",
-    "NEXT_PUBLIC_SUPABASE_URL": "https://wotovotafnfxgljbigju.supabase.co",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable__S0fvT24O7SwwW6d62txlg_-r7EdF3J"
-  },
+"vars": {
+  "GOOGLE_CLIENT_ID": "2684205728-matjnlpacg6adecqbmfiaojn6cfb2gc9.apps.googleusercontent.com",
+  "GOOGLE_REDIRECT_URI": "https://family-os.r-fierling.workers.dev/api/google/auth/callback",
+  "GOOGLE_CALENDAR_SCOPES": "https://www.googleapis.com/auth/calendar.events",
+  "NEXT_PUBLIC_SUPABASE_URL": "https://wotovotafnfxgljbigju.supabase.co",
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable__S0fvT24O7SwwW6d62txlg_-r7EdF3J"
+}
 
   "assets": {
     "binding": "ASSETS",
