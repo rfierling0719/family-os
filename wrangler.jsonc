@@ -8,10 +8,20 @@
     "nodejs_compat_populate_process_env"
   ],
   "keep_vars": true,
+
+  "vars": {
+    "GOOGLE_CLIENT_ID": "YOUR_FULL_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+    "GOOGLE_REDIRECT_URI": "https://family-os.r-fierling.workers.dev/api/google/auth/callback",
+    "GOOGLE_CALENDAR_SCOPES": "https://www.googleapis.com/auth/calendar.events",
+    "NEXT_PUBLIC_SUPABASE_URL": "https://wotovotafnfxgljbigju.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "YOUR_SUPABASE_PUBLISHABLE_KEY"
+  },
+
   "assets": {
     "binding": "ASSETS",
     "directory": ".open-next/assets"
   },
+
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
