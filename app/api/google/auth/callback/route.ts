@@ -31,9 +31,11 @@ export async function GET(req: NextRequest) {
 
   const { env } = getCloudflareContext();
 
-  const clientId = env.GOOGLE_CLIENT_ID as string | undefined;
-  const clientSecret = env.GOOGLE_CLIENT_SECRET as string | undefined;
-  const redirectUri = env.GOOGLE_REDIRECT_URI as string | undefined;
+  const bindings = env as Record<string, string | undefined>;
+
+  const clientId = bindings.GOOGLE_CLIENT_ID;
+  const clientSecret = bindings.GOOGLE_CLIENT_SECRET;
+  const redirectUri = bindings.GOOGLE_REDIRECT_URI;
 
   if (!clientId) {
     return NextResponse.json(
@@ -102,8 +104,13 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     success: true,
     message: "Google Calendar authorization succeeded.",
-    accessTokenReceived: Boolean((tokenData as any).access_token),
-    refreshTokenReceived: Boolean((tokenData as any).refresh_token),
-    expiresIn: (tokenData as any).expires_in ?? null
+    accessTokenReceived: Boolean(
+      (tokenData as { access_token?: string }).access_token
+    ),
+    refreshTokenReceived: Boolean(
+      (tokenData as { refresh_token?: string }).refresh_token
+    ),
+    expiresIn:
+      (tokenData as { expires_in?: number }).expires_in ?? null
   });
 }
