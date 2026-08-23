@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -28,16 +29,18 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+  const { env } = getCloudflareContext();
+
+  const clientId = env.GOOGLE_CLIENT_ID as string | undefined;
+  const clientSecret = env.GOOGLE_CLIENT_SECRET as string | undefined;
+  const redirectUri = env.GOOGLE_REDIRECT_URI as string | undefined;
 
   if (!clientId) {
     return NextResponse.json(
       {
         success: false,
         stage: "configuration",
-        error: "GOOGLE_CLIENT_ID is missing at runtime."
+        error: "GOOGLE_CLIENT_ID is missing from Cloudflare bindings."
       },
       { status: 500 }
     );
@@ -48,7 +51,7 @@ export async function GET(req: NextRequest) {
       {
         success: false,
         stage: "configuration",
-        error: "GOOGLE_CLIENT_SECRET is missing at runtime."
+        error: "GOOGLE_CLIENT_SECRET is missing from Cloudflare bindings."
       },
       { status: 500 }
     );
@@ -59,7 +62,7 @@ export async function GET(req: NextRequest) {
       {
         success: false,
         stage: "configuration",
-        error: "GOOGLE_REDIRECT_URI is missing at runtime."
+        error: "GOOGLE_REDIRECT_URI is missing from Cloudflare bindings."
       },
       { status: 500 }
     );
