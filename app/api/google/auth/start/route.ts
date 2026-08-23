@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
-  const code = req.nextUrl.searchParams.get("code");
-  const oauthError = req.nextUrl.searchParams.get("error");
+  const url = new URL(req.url);
+
+  const code = url.searchParams.get("code");
+  const oauthError = url.searchParams.get("error");
+  const oauthErrorDescription =
+    url.searchParams.get("error_description");
 
   if (oauthError) {
     return NextResponse.json(
       {
         success: false,
         stage: "google_authorization",
-        error: oauthError
+        error: oauthError,
+        description: oauthErrorDescription
       },
       { status: 400 }
     );
@@ -20,7 +25,9 @@ export async function GET(req: NextRequest) {
       {
         success: false,
         stage: "callback",
-        error: "Google did not return an authorization code."
+        error: "Google did not return an authorization code.",
+        callbackUrl: url.origin + url.pathname,
+        queryParametersReceived: [...url.searchParams.keys()]
       },
       { status: 400 }
     );
@@ -68,7 +75,8 @@ export async function GET(req: NextRequest) {
     {
       method: "POST",
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
+        "Content-Type":
+          "application/x-www-form-urlencoded"
       },
       body: new URLSearchParams({
         code,
@@ -97,8 +105,12 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     success: true,
     message: "Google Calendar authorization succeeded.",
-    accessTokenReceived: Boolean(tokenData.access_token),
-    refreshTokenReceived: Boolean(tokenData.refresh_token),
-    expiresIn: tokenData.expires_in ?? null
+    accessTokenReceived: Boolean(
+      (tokenData as any).access_token
+    ),
+    refreshTokenReceived: Boolean(
+      (tokenData as any).refresh_token
+    ),
+    expiresIn: (tokenData as any).expires_in ?? null
   });
 }
