@@ -1,22 +1,36 @@
 import { NextResponse } from "next/server";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export async function GET() {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+  const { env } = getCloudflareContext();
+
+  const bindings = env as Record<string, string | undefined>;
+
+  const clientId = bindings.GOOGLE_CLIENT_ID;
+  const redirectUri = bindings.GOOGLE_REDIRECT_URI;
+
   const scope =
-    process.env.GOOGLE_CALENDAR_SCOPES ||
+    bindings.GOOGLE_CALENDAR_SCOPES ||
     "https://www.googleapis.com/auth/calendar.events";
 
   if (!clientId) {
     return NextResponse.json(
-      { error: "GOOGLE_CLIENT_ID is missing" },
+      {
+        success: false,
+        stage: "configuration",
+        error: "GOOGLE_CLIENT_ID is missing from Cloudflare bindings."
+      },
       { status: 500 }
     );
   }
 
   if (!redirectUri) {
     return NextResponse.json(
-      { error: "GOOGLE_REDIRECT_URI is missing" },
+      {
+        success: false,
+        stage: "configuration",
+        error: "GOOGLE_REDIRECT_URI is missing from Cloudflare bindings."
+      },
       { status: 500 }
     );
   }
