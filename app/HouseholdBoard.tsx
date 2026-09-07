@@ -27,9 +27,13 @@ type HouseholdItem = {
   user_id: string;
   title: string;
   category: string;
-  due_date: string | null;
+  due_date:
+    | string
+    | null;
   recurrence: string;
-  notes: string | null;
+  notes:
+    | string
+    | null;
   completed: boolean;
 };
 
@@ -45,72 +49,135 @@ const categories = [
 ];
 
 export default function HouseholdBoard() {
-  const [session, setSession] =
-    useState<Session | null>(null);
+  const [
+    session,
+    setSession
+  ] =
+    useState<
+      Session | null
+    >(null);
 
-  const [items, setItems] =
-    useState<HouseholdItem[]>([]);
+  const [
+    items,
+    setItems
+  ] =
+    useState<
+      HouseholdItem[]
+    >([]);
 
-  const [title, setTitle] =
+  const [
+    title,
+    setTitle
+  ] =
     useState("");
 
-  const [category, setCategory] =
-    useState("General");
+  const [
+    category,
+    setCategory
+  ] =
+    useState(
+      "General"
+    );
 
-  const [dueDate, setDueDate] =
+  const [
+    dueDate,
+    setDueDate
+  ] =
     useState("");
 
-  const [recurrence, setRecurrence] =
-    useState("none");
+  const [
+    recurrence,
+    setRecurrence
+  ] =
+    useState(
+      "none"
+    );
 
-  const [notes, setNotes] =
+  const [
+    notes,
+    setNotes
+  ] =
     useState("");
 
-  const [showForm, setShowForm] =
+  const [
+    showForm,
+    setShowForm
+  ] =
     useState(false);
 
   async function loadItems() {
-    const { data, error } =
+    const {
+      data,
+      error
+    } =
       await supabase
-        .from("household_items")
+        .from(
+          "household_items"
+        )
         .select("*")
-        .order("completed", {
-          ascending: true
-        })
-        .order("due_date", {
-          ascending: true,
-          nullsFirst: false
-        });
+        .order(
+          "completed",
+          {
+            ascending:
+              true
+          }
+        )
+        .order(
+          "due_date",
+          {
+            ascending:
+              true,
+            nullsFirst:
+              false
+          }
+        );
 
     if (!error) {
       setItems(
-        (data || []) as HouseholdItem[]
+        (data ||
+          []) as HouseholdItem[]
       );
     }
   }
 
   useEffect(() => {
-    const start = async () => {
-      const { data } =
-        await supabase.auth.getSession();
+    const start =
+      async () => {
+        const {
+          data
+        } =
+          await supabase.auth.getSession();
 
-      setSession(data.session);
+        setSession(
+          data.session
+        );
 
-      if (data.session) {
-        await loadItems();
-      }
-    };
+        if (
+          data.session
+        ) {
+          await loadItems();
+        }
+      };
 
     start();
 
     const {
-      data: { subscription }
+      data: {
+        subscription
+      }
     } =
       supabase.auth.onAuthStateChange(
-        async (_event, currentSession) => {
-          setSession(currentSession);
+        async (
+          _event,
+          currentSession
+        ) => {
+          setSession(
+            currentSession
+          );
 
-          if (currentSession) {
+          if (
+            currentSession
+          ) {
             await loadItems();
           } else {
             setItems([]);
@@ -134,21 +201,32 @@ export default function HouseholdBoard() {
       return;
     }
 
-    const { error } =
+    const {
+      error
+    } =
       await supabase
-        .from("household_items")
+        .from(
+          "household_items"
+        )
         .insert({
           user_id:
             session.user.id,
+
           title:
             title.trim(),
+
           category,
+
           due_date:
-            dueDate || null,
+            dueDate ||
+            null,
+
           recurrence,
+
           notes:
             notes.trim() ||
             null,
+
           completed:
             false
         });
@@ -157,27 +235,152 @@ export default function HouseholdBoard() {
       setTitle("");
       setDueDate("");
       setNotes("");
-      setCategory("General");
-      setRecurrence("none");
-      setShowForm(false);
+      setCategory(
+        "General"
+      );
+      setRecurrence(
+        "none"
+      );
+      setShowForm(
+        false
+      );
 
       await loadItems();
     }
   }
 
-  async function toggleItem(
+  function getNextDueDate(
     item: HouseholdItem
   ) {
-    const { error } =
+    const base =
+      item.due_date
+        ? new Date(
+            `${item.due_date}T12:00:00`
+          )
+        : new Date();
+
+    if (
+      item.recurrence ===
+      "monthly"
+    ) {
+      base.setMonth(
+        base.getMonth() +
+          1
+      );
+    }
+
+    if (
+      item.recurrence ===
+      "quarterly"
+    ) {
+      base.setMonth(
+        base.getMonth() +
+          3
+      );
+    }
+
+    if (
+      item.recurrence ===
+      "semiannual"
+    ) {
+      base.setMonth(
+        base.getMonth() +
+          6
+      );
+    }
+
+    if (
+      item.recurrence ===
+      "annual"
+    ) {
+      base.setFullYear(
+        base.getFullYear() +
+          1
+      );
+    }
+
+    const year =
+      base.getFullYear();
+
+    const month =
+      String(
+        base.getMonth() +
+          1
+      ).padStart(
+        2,
+        "0"
+      );
+
+    const day =
+      String(
+        base.getDate()
+      ).padStart(
+        2,
+        "0"
+      );
+
+    return `${year}-${month}-${day}`;
+  }
+
+  async function completeItem(
+    item: HouseholdItem
+  ) {
+    if (
+      item.recurrence !==
+      "none"
+    ) {
+      const nextDate =
+        getNextDueDate(
+          item
+        );
+
+      const {
+        error
+      } =
+        await supabase
+          .from(
+            "household_items"
+          )
+          .update({
+            due_date:
+              nextDate,
+
+            completed:
+              false,
+
+            updated_at:
+              new Date().toISOString()
+          })
+          .eq(
+            "id",
+            item.id
+          );
+
+      if (!error) {
+        await loadItems();
+      }
+
+      return;
+    }
+
+    const {
+      error
+    } =
       await supabase
-        .from("household_items")
+        .from(
+          "household_items"
+        )
         .update({
           completed:
             !item.completed,
+
           updated_at:
             new Date().toISOString()
         })
-        .eq("id", item.id);
+        .eq(
+          "id",
+          item.id
+        );
 
     if (!error) {
       await loadItems();
@@ -195,11 +398,18 @@ export default function HouseholdBoard() {
       return;
     }
 
-    const { error } =
+    const {
+      error
+    } =
       await supabase
-        .from("household_items")
+        .from(
+          "household_items"
+        )
         .delete()
-        .eq("id", item.id);
+        .eq(
+          "id",
+          item.id
+        );
 
     if (!error) {
       await loadItems();
@@ -207,34 +417,25 @@ export default function HouseholdBoard() {
   }
 
   function formatDueDate(
-    value: string | null
+    value:
+      | string
+      | null
   ) {
     if (!value) {
       return "No due date";
     }
 
-    const [
-      year,
-      month,
-      day
-    ] =
-      value
-        .split("-")
-        .map(Number);
-
-    const date =
-      new Date(
-        year,
-        month - 1,
-        day
-      );
-
-    return date.toLocaleDateString(
+    return new Date(
+      `${value}T12:00:00`
+    ).toLocaleDateString(
       [],
       {
-        month: "short",
-        day: "numeric",
-        year: "numeric"
+        month:
+          "short",
+        day:
+          "numeric",
+        year:
+          "numeric"
       }
     );
   }
@@ -249,6 +450,11 @@ export default function HouseholdBoard() {
       return false;
     }
 
+    const due =
+      new Date(
+        `${item.due_date}T12:00:00`
+      );
+
     const today =
       new Date();
 
@@ -259,41 +465,53 @@ export default function HouseholdBoard() {
       0
     );
 
-    const [
-      year,
-      month,
-      day
-    ] =
-      item.due_date
-        .split("-")
-        .map(Number);
+    return due < today;
+  }
+
+  function recurrenceLabel(
+    value: string
+  ) {
+    const labels:
+      Record<
+        string,
+        string
+      > = {
+        monthly:
+          "Every month",
+        quarterly:
+          "Every 3 months",
+        semiannual:
+          "Every 6 months",
+        annual:
+          "Every year"
+      };
 
     return (
-      new Date(
-        year,
-        month - 1,
-        day
-      ) < today
+      labels[value] ||
+      value
     );
   }
 
   const openItems =
     items.filter(
-      item => !item.completed
+      item =>
+        !item.completed
     );
 
   const completedItems =
     items.filter(
-      item => item.completed
+      item =>
+        item.completed
     );
 
   if (!session) {
     return (
       <div>
         <h2>Home</h2>
+
         <p>
-          Sign in to manage household
-          maintenance.
+          Sign in to manage
+          household maintenance.
         </p>
       </div>
     );
@@ -302,20 +520,15 @@ export default function HouseholdBoard() {
   return (
     <div>
       <div
-        style={{
-          display: "flex",
-          justifyContent:
-            "space-between",
-          alignItems: "center",
-          gap: "12px"
-        }}
+        className="section-header"
       >
         <div>
           <h2>Home</h2>
 
           <p>
-            Maintenance, repairs and
-            recurring household jobs.
+            Maintenance,
+            repairs and
+            recurring jobs.
           </p>
         </div>
 
@@ -336,58 +549,47 @@ export default function HouseholdBoard() {
 
       {showForm && (
         <form
-          onSubmit={addItem}
-          style={{
-            marginTop: "20px",
-            padding: "16px",
-            border:
-              "1px solid rgba(128,128,128,.2)",
-            borderRadius: "12px"
-          }}
+          className="form-card"
+          onSubmit={
+            addItem
+          }
         >
           <input
-            value={title}
+            value={
+              title
+            }
             onChange={
               event =>
                 setTitle(
-                  event.target.value
+                  event.target
+                    .value
                 )
             }
             placeholder="What needs attention?"
-            style={{
-              width: "100%",
-              boxSizing:
-                "border-box",
-              padding: "10px",
-              marginBottom:
-                "10px"
-            }}
+            required
           />
 
           <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "1fr 1fr 1fr",
-              gap: "10px"
-            }}
+            className="form-grid-3"
           >
             <select
-              value={category}
+              value={
+                category
+              }
               onChange={
                 event =>
                   setCategory(
-                    event.target.value
+                    event.target
+                      .value
                   )
               }
-              style={{
-                padding: "10px"
-              }}
             >
               {categories.map(
                 item => (
                   <option
-                    key={item}
+                    key={
+                      item
+                    }
                   >
                     {item}
                   </option>
@@ -397,29 +599,29 @@ export default function HouseholdBoard() {
 
             <input
               type="date"
-              value={dueDate}
+              value={
+                dueDate
+              }
               onChange={
                 event =>
                   setDueDate(
-                    event.target.value
+                    event.target
+                      .value
                   )
               }
-              style={{
-                padding: "10px"
-              }}
             />
 
             <select
-              value={recurrence}
+              value={
+                recurrence
+              }
               onChange={
                 event =>
                   setRecurrence(
-                    event.target.value
+                    event.target
+                      .value
                   )
               }
-              style={{
-                padding: "10px"
-              }}
             >
               <option value="none">
                 No repeat
@@ -444,79 +646,73 @@ export default function HouseholdBoard() {
           </div>
 
           <textarea
-            value={notes}
+            value={
+              notes
+            }
             onChange={
               event =>
                 setNotes(
-                  event.target.value
+                  event.target
+                    .value
                 )
             }
             placeholder="Notes..."
             rows={3}
-            style={{
-              width: "100%",
-              boxSizing:
-                "border-box",
-              padding: "10px",
-              marginTop: "10px"
-            }}
           />
 
           <button
             className="btn"
             type="submit"
-            style={{
-              marginTop: "10px"
-            }}
           >
             Save
           </button>
         </form>
       )}
 
-      {openItems.length === 0 ? (
+      {openItems.length ===
+      0 ? (
         <div
           style={{
-            marginTop: "30px"
+            marginTop:
+              "28px"
           }}
         >
           <h3>
-            Nothing needs attention 🎉
+            Nothing needs
+            attention 🎉
           </h3>
         </div>
       ) : (
         <div
           style={{
-            marginTop: "24px"
+            marginTop:
+              "22px"
           }}
         >
-          {openItems.map(item => (
-            <div
-              key={item.id}
-              style={{
-                padding:
-                  "14px 0",
-                borderBottom:
-                  "1px solid rgba(128,128,128,.15)"
-              }}
-            >
+          {openItems.map(
+            item => (
               <div
-                style={{
-                  display: "flex",
-                  gap: "10px"
-                }}
+                key={
+                  item.id
+                }
+                className="maintenance-row"
               >
-                <input
-                  type="checkbox"
-                  checked={
-                    item.completed
-                  }
-                  onChange={() =>
-                    toggleItem(
+                <button
+                  className="complete-circle"
+                  onClick={() =>
+                    completeItem(
                       item
                     )
                   }
-                />
+                  title={
+                    item.recurrence ===
+                    "none"
+                      ? "Complete"
+                      : "Complete and schedule next occurrence"
+                  }
+                >
+                  ✓
+                </button>
 
                 <div
                   style={{
@@ -524,18 +720,17 @@ export default function HouseholdBoard() {
                   }}
                 >
                   <strong>
-                    {item.title}
+                    {
+                      item.title
+                    }
                   </strong>
 
                   <div
-                    style={{
-                      fontSize:
-                        "13px",
-                      marginTop:
-                        "4px"
-                    }}
+                    className="muted-small"
                   >
-                    {item.category}
+                    {
+                      item.category
+                    }
                     {" · "}
 
                     <span
@@ -553,6 +748,7 @@ export default function HouseholdBoard() {
                       )
                         ? "⚠ Overdue · "
                         : ""}
+
                       {formatDueDate(
                         item.due_date
                       )}
@@ -562,53 +758,37 @@ export default function HouseholdBoard() {
                   {item.recurrence !==
                     "none" && (
                     <div
-                      style={{
-                        fontSize:
-                          "12px",
-                        opacity:
-                          0.65,
-                        marginTop:
-                          "3px"
-                      }}
+                      className="muted-small"
                     >
                       🔁{" "}
-                      {
+                      {recurrenceLabel(
                         item.recurrence
-                      }
+                      )}
                     </div>
                   )}
 
                   {item.notes && (
-                    <p
-                      style={{
-                        fontSize:
-                          "13px"
-                      }}
-                    >
-                      {item.notes}
+                    <p>
+                      {
+                        item.notes
+                      }
                     </p>
                   )}
                 </div>
 
                 <button
+                  className="icon-button"
                   onClick={() =>
                     deleteItem(
                       item
                     )
                   }
-                  style={{
-                    border: "none",
-                    background:
-                      "transparent",
-                    cursor:
-                      "pointer"
-                  }}
                 >
                   ✕
                 </button>
               </div>
-            </div>
-          ))}
+            )
+          )}
         </div>
       )}
 
@@ -616,18 +796,24 @@ export default function HouseholdBoard() {
         0 && (
         <details
           style={{
-            marginTop: "24px"
+            marginTop:
+              "24px"
           }}
         >
           <summary>
-            Completed maintenance (
-            {completedItems.length})
+            Completed (
+            {
+              completedItems.length
+            }
+            )
           </summary>
 
           {completedItems.map(
             item => (
               <div
-                key={item.id}
+                key={
+                  item.id
+                }
                 style={{
                   padding:
                     "8px 0",
@@ -635,7 +821,9 @@ export default function HouseholdBoard() {
                     0.55
                 }}
               >
-                {item.title}
+                {
+                  item.title
+                }
               </div>
             )
           )}
