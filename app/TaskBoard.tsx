@@ -7,25 +7,12 @@ import {
 } from "react";
 
 import {
-  createClient,
-  Session
-} from "@supabase/supabase-js";
+  supabase
+} from "./lib/supabase";
 
-const supabaseUrl =
-  "https://wotovotafnfxgljbigju.supabase.co";
-
-const supabaseAnonKey =
-  "sb_publishable__S0fvT24O7SwwW6d62txlg_-r7EdF3J";
-
-const supabase = createClient(
-  supabaseUrl,
-  supabaseAnonKey
-);
-
-type Assignee =
-  | "me"
-  | "wife"
-  | "family";
+import {
+  useFamily
+} from "./FamilyProvider";
 
 type Priority =
   | "low"
@@ -35,74 +22,118 @@ type Priority =
 type Task = {
   id: string;
   user_id: string;
+  household_id: string;
   title: string;
-  assignee: Assignee;
-  category: string;
   priority: Priority;
   due_date: string | null;
   completed: boolean;
+  assigned_to: string | null;
   created_at: string;
-  updated_at: string;
 };
 
 export default function TaskBoard() {
-  const [session, setSession] =
-    useState<Session | null>(null);
+  const {
+    session,
+    householdId,
+    members,
+    loading:
+      familyLoading
+  } =
+    useFamily();
 
-  const [tasks, setTasks] =
+  const [
+    tasks,
+    setTasks
+  ] =
     useState<Task[]>([]);
 
-  const [loading, setLoading] =
+  const [
+    loading,
+    setLoading
+  ] =
     useState(true);
 
-  const [saving, setSaving] =
+  const [
+    saving,
+    setSaving
+  ] =
     useState(false);
 
-  const [title, setTitle] =
-    useState("");
-
-  const [assignee, setAssignee] =
-    useState<Assignee>("me");
-
-  const [priority, setPriority] =
-    useState<Priority>("normal");
-
-  const [dueDate, setDueDate] =
-    useState("");
-
-  const [showAddTask, setShowAddTask] =
+  const [
+    showAdd,
+    setShowAdd
+  ] =
     useState(false);
 
-  async function loadTasks(
-    currentSession: Session
-  ) {
+  const [
+    title,
+    setTitle
+  ] =
+    useState("");
+
+  const [
+    assignedTo,
+    setAssignedTo
+  ] =
+    useState("family");
+
+  const [
+    priority,
+    setPriority
+  ] =
+    useState<Priority>(
+      "normal"
+    );
+
+  const [
+    dueDate,
+    setDueDate
+  ] =
+    useState("");
+
+  async function loadTasks() {
+    if (!householdId) {
+      return;
+    }
+
     setLoading(true);
 
     const {
       data,
       error
-    } = await supabase
-      .from("tasks")
-      .select("*")
-      .order(
-        "completed",
-        {
-          ascending: true
-        }
-      )
-      .order(
-        "due_date",
-        {
-          ascending: true,
-          nullsFirst: false
-        }
-      )
-      .order(
-        "created_at",
-        {
-          ascending: false
-        }
-      );
+    } =
+      await supabase
+        .from("tasks")
+        .select(
+          "id,user_id,household_id,title,priority,due_date,completed,assigned_to,created_at"
+        )
+        .eq(
+          "household_id",
+          householdId
+        )
+        .order(
+          "completed",
+          {
+            ascending:
+              true
+          }
+        )
+        .order(
+          "due_date",
+          {
+            ascending:
+              true,
+            nullsFirst:
+              false
+          }
+        )
+        .order(
+          "created_at",
+          {
+            ascending:
+              false
+          }
+        );
 
     if (error) {
       console.error(
@@ -113,7 +144,8 @@ export default function TaskBoard() {
       setTasks([]);
     } else {
       setTasks(
-        (data || []) as Task[]
+        (data ||
+          []) as Task[]
       );
     }
 
@@ -121,70 +153,40 @@ export default function TaskBoard() {
   }
 
   useEffect(() => {
-    const start =
-      async () => {
-        const {
-          data,
-          error
-        } =
-          await supabase.auth.getSession();
+    if (!householdId) {
+      return;
+    }
 
-        if (error) {
-          console.error(
-            "Unable to read session:",
-            error
-          );
+    loadTasks();
 
-          setLoading(false);
-          return;
-        }
-
-        setSession(
-          data.session
-        );
-
-        if (data.session) {
-          await loadTasks(
-            data.session
-          );
-        } else {
-          setLoading(false);
-        }
-      };
-
-    start();
-
-    const {
-      data: {
-        subscription
-      }
-    } =
-      supabase.auth.onAuthStateChange(
-        async (
-          _event,
-          currentSession
-        ) => {
-          setSession(
-            currentSession
-          );
-
-          if (
-            currentSession
-          ) {
-            await loadTasks(
-              currentSession
-            );
-          } else {
-            setTasks([]);
-            setLoading(false);
+    const channel =
+      supabase
+        .channel(
+          `tasks-${householdId}`
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema:
+              "public",
+            table:
+              "tasks",
+            filter:
+              `household_id=eq.${householdId}`
+          },
+          () => {
+            loadTasks();
           }
-        }
-      );
+        )
+        .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      supabase.removeChannel(
+        channel
+      );
     };
-  }, []);
+  }, [householdId]);
 
   async function addTask(
     event: FormEvent
@@ -193,6 +195,7 @@ export default function TaskBoard() {
 
     if (
       !session ||
+      !householdId ||
       !title.trim()
     ) {
       return;
@@ -209,10 +212,23 @@ export default function TaskBoard() {
           user_id:
             session.user.id,
 
+          household_id:
+            householdId,
+
           title:
             title.trim(),
 
-          assignee,
+          assignee:
+            assignedTo ===
+            "family"
+              ? "family"
+              : "me",
+
+          assigned_to:
+            assignedTo ===
+            "family"
+              ? null
+              : assignedTo,
 
           category:
             "general",
@@ -220,7 +236,8 @@ export default function TaskBoard() {
           priority,
 
           due_date:
-            dueDate || null,
+            dueDate ||
+            null,
 
           completed:
             false
@@ -228,27 +245,28 @@ export default function TaskBoard() {
 
     if (error) {
       console.error(
-        "Unable to create task:",
+        "Unable to add task:",
         error
       );
 
       alert(
-        "The task could not be created."
+        "Task could not be created."
+      );
+    } else {
+      setTitle("");
+      setDueDate("");
+      setPriority(
+        "normal"
+      );
+      setAssignedTo(
+        "family"
+      );
+      setShowAdd(
+        false
       );
 
-      setSaving(false);
-      return;
+      await loadTasks();
     }
-
-    setTitle("");
-    setDueDate("");
-    setPriority("normal");
-    setAssignee("me");
-    setShowAddTask(false);
-
-    await loadTasks(
-      session
-    );
 
     setSaving(false);
   }
@@ -256,10 +274,6 @@ export default function TaskBoard() {
   async function toggleTask(
     task: Task
   ) {
-    if (!session) {
-      return;
-    }
-
     const {
       error
     } =
@@ -268,7 +282,6 @@ export default function TaskBoard() {
         .update({
           completed:
             !task.completed,
-
           updated_at:
             new Date().toISOString()
         })
@@ -277,44 +290,19 @@ export default function TaskBoard() {
           task.id
         );
 
-    if (error) {
-      console.error(
-        "Unable to update task:",
-        error
-      );
-
-      return;
+    if (!error) {
+      await loadTasks();
     }
-
-    setTasks(
-      currentTasks =>
-        currentTasks.map(
-          currentTask =>
-            currentTask.id ===
-            task.id
-              ? {
-                  ...currentTask,
-                  completed:
-                    !currentTask.completed
-                }
-              : currentTask
-        )
-    );
   }
 
   async function deleteTask(
     task: Task
   ) {
-    if (!session) {
-      return;
-    }
-
-    const confirmed =
-      window.confirm(
+    if (
+      !window.confirm(
         `Delete "${task.title}"?`
-      );
-
-    if (!confirmed) {
+      )
+    ) {
       return;
     }
 
@@ -329,84 +317,57 @@ export default function TaskBoard() {
           task.id
         );
 
-    if (error) {
-      console.error(
-        "Unable to delete task:",
-        error
-      );
+    if (!error) {
+      await loadTasks();
+    }
+  }
 
-      return;
+  function memberName(
+    userId:
+      string | null
+  ) {
+    if (!userId) {
+      return "Family";
     }
 
-    setTasks(
-      currentTasks =>
-        currentTasks.filter(
-          currentTask =>
-            currentTask.id !==
-            task.id
-        )
+    const member =
+      members.find(
+        item =>
+          item.user_id ===
+          userId
+      );
+
+    if (
+      userId ===
+      session?.user.id
+    ) {
+      return "You";
+    }
+
+    return (
+      member?.display_name ||
+      member?.email ||
+      "Family member"
     );
   }
 
-  function formatDueDate(
-    value: string | null
+  function formatDate(
+    value:
+      string | null
   ) {
     if (!value) {
       return null;
     }
 
-    const [
-      year,
-      month,
-      day
-    ] =
-      value
-        .split("-")
-        .map(Number);
-
-    const date =
-      new Date(
-        year,
-        month - 1,
-        day
-      );
-
-    const today =
-      new Date();
-
-    today.setHours(
-      0,
-      0,
-      0,
-      0
-    );
-
-    const tomorrow =
-      new Date(today);
-
-    tomorrow.setDate(
-      tomorrow.getDate() + 1
-    );
-
-    if (
-      date.getTime() ===
-      today.getTime()
-    ) {
-      return "Today";
-    }
-
-    if (
-      date.getTime() ===
-      tomorrow.getTime()
-    ) {
-      return "Tomorrow";
-    }
-
-    return date.toLocaleDateString(
+    return new Date(
+      `${value}T12:00:00`
+    ).toLocaleDateString(
       [],
       {
-        month: "short",
-        day: "numeric"
+        month:
+          "short",
+        day:
+          "numeric"
       }
     );
   }
@@ -431,270 +392,78 @@ export default function TaskBoard() {
       0
     );
 
-    const [
-      year,
-      month,
-      day
-    ] =
-      task.due_date
-        .split("-")
-        .map(Number);
-
-    const due =
-      new Date(
-        year,
-        month - 1,
-        day
-      );
-
-    return due < today;
-  }
-
-  function priorityLabel(
-    priorityValue: Priority
-  ) {
-    if (
-      priorityValue ===
-      "high"
-    ) {
-      return "🔴 High";
-    }
-
-    if (
-      priorityValue ===
-      "low"
-    ) {
-      return "Low";
-    }
-
-    return "";
-  }
-
-  function renderTask(
-    task: Task
-  ) {
-    const due =
-      formatDueDate(
-        task.due_date
-      );
-
     return (
-      <div
-        key={task.id}
-        style={{
-          display: "flex",
-          alignItems:
-            "flex-start",
-          gap: "10px",
-          padding:
-            "10px 0",
-          borderBottom:
-            "1px solid rgba(128,128,128,0.18)"
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={
-            task.completed
-          }
-          onChange={() =>
-            toggleTask(task)
-          }
-          style={{
-            marginTop: "4px"
-          }}
-        />
+      new Date(
+        `${task.due_date}T12:00:00`
+      ) < today
+    );
+  }
 
-        <div
-          style={{
-            flex: 1
-          }}
-        >
-          <div
-            style={{
-              fontWeight: 600,
-              textDecoration:
-                task.completed
-                  ? "line-through"
-                  : "none",
-              opacity:
-                task.completed
-                  ? 0.5
-                  : 1
-            }}
-          >
-            {task.title}
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              gap: "8px",
-              flexWrap: "wrap",
-              marginTop: "4px",
-              fontSize: "12px",
-              opacity: 0.72
-            }}
-          >
-            {due && (
-              <span
-                style={{
-                  fontWeight:
-                    isOverdue(task)
-                      ? 700
-                      : 400
-                }}
-              >
-                {isOverdue(task)
-                  ? `⚠ Overdue · ${due}`
-                  : `📅 ${due}`}
-              </span>
-            )}
-
-            {priorityLabel(
-              task.priority
-            ) && (
-              <span>
-                {priorityLabel(
-                  task.priority
-                )}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <button
-          onClick={() =>
-            deleteTask(task)
-          }
-          title="Delete task"
-          style={{
-            border: "none",
-            background:
-              "transparent",
-            cursor: "pointer",
-            opacity: 0.55,
-            fontSize: "15px"
-          }}
-        >
-          ✕
-        </button>
+  if (
+    familyLoading ||
+    !session
+  ) {
+    return (
+      <div>
+        <h2>Tasks</h2>
+        <p>Loading tasks...</p>
       </div>
     );
   }
 
-  const activeTasks =
+  const openTasks =
     tasks.filter(
       task =>
         !task.completed
     );
 
-  const myTasks =
-    activeTasks.filter(
-      task =>
-        task.assignee ===
-        "me"
-    );
-
-  const wifeTasks =
-    activeTasks.filter(
-      task =>
-        task.assignee ===
-        "wife"
-    );
-
-  const familyTasks =
-    activeTasks.filter(
-      task =>
-        task.assignee ===
-        "family"
-    );
-
-  const completedTasks =
+  const completed =
     tasks.filter(
       task =>
         task.completed
     );
 
-  if (!session) {
-    return (
-      <>
-        <h3>Tasks</h3>
-
-        <p>
-          Connect Google Calendar
-          to sign in before
-          adding household tasks.
-        </p>
-      </>
-    );
-  }
-
   return (
-    <>
+    <div>
       <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent:
-            "space-between",
-          gap: "12px"
-        }}
+        className="section-header"
       >
         <div>
-          <h3
-            style={{
-              marginBottom:
-                "4px"
-            }}
-          >
+          <h2>
             Household tasks
-          </h3>
+          </h2>
 
-          <span
-            style={{
-              fontSize: "12px",
-              opacity: 0.65
-            }}
-          >
-            {
-              activeTasks.length
-            }{" "}
-            open
-          </span>
+          <p>
+            {openTasks.length} open
+          </p>
         </div>
 
         <button
           className="btn"
           onClick={() =>
-            setShowAddTask(
-              current =>
-                !current
+            setShowAdd(
+              value =>
+                !value
             )
           }
         >
-          {showAddTask
+          {showAdd
             ? "Cancel"
             : "+ Add task"}
         </button>
       </div>
 
-      {showAddTask && (
+      {showAdd && (
         <form
-          onSubmit={addTask}
-          style={{
-            marginTop: "18px",
-            padding:
-              "14px",
-            border:
-              "1px solid rgba(128,128,128,0.2)",
-            borderRadius:
-              "10px"
-          }}
+          className="form-card"
+          onSubmit={
+            addTask
+          }
         >
           <input
-            type="text"
-            value={title}
+            value={
+              title
+            }
             onChange={
               event =>
                 setTitle(
@@ -704,52 +473,46 @@ export default function TaskBoard() {
             }
             placeholder="What needs to be done?"
             required
-            style={{
-              width: "100%",
-              boxSizing:
-                "border-box",
-              padding:
-                "10px",
-              marginBottom:
-                "10px"
-            }}
           />
 
           <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fit, minmax(120px, 1fr))",
-              gap: "8px"
-            }}
+            className="form-grid-3"
           >
             <select
               value={
-                assignee
+                assignedTo
               }
               onChange={
                 event =>
-                  setAssignee(
+                  setAssignedTo(
                     event.target
-                      .value as Assignee
+                      .value
                   )
               }
-              style={{
-                padding:
-                  "9px"
-              }}
             >
-              <option value="me">
-                Me
-              </option>
-
-              <option value="wife">
-                Wife
-              </option>
-
               <option value="family">
                 Family
               </option>
+
+              {members.map(
+                member => (
+                  <option
+                    key={
+                      member.user_id
+                    }
+                    value={
+                      member.user_id
+                    }
+                  >
+                    {member.user_id ===
+                    session.user.id
+                      ? "Me"
+                      : member.display_name ||
+                        member.email ||
+                        "Family member"}
+                  </option>
+                )
+              )}
             </select>
 
             <select
@@ -763,17 +526,13 @@ export default function TaskBoard() {
                       .value as Priority
                   )
               }
-              style={{
-                padding:
-                  "9px"
-              }}
             >
               <option value="low">
                 Low priority
               </option>
 
               <option value="normal">
-                Normal
+                Normal priority
               </option>
 
               <option value="high">
@@ -793,10 +552,6 @@ export default function TaskBoard() {
                       .value
                   )
               }
-              style={{
-                padding:
-                  "9px"
-              }}
             />
           </div>
 
@@ -806,10 +561,6 @@ export default function TaskBoard() {
             disabled={
               saving
             }
-            style={{
-              marginTop:
-                "10px"
-            }}
           >
             {saving
               ? "Saving..."
@@ -819,125 +570,155 @@ export default function TaskBoard() {
       )}
 
       {loading ? (
-        <p
-          style={{
-            marginTop:
-              "16px"
-          }}
-        >
+        <p>
           Loading tasks...
         </p>
+      ) : openTasks.length ===
+        0 ? (
+        <div
+          className="empty-state"
+        >
+          <h3>
+            Everything is
+            handled 🎉
+          </h3>
+        </div>
       ) : (
-        <>
-          <TaskSection
-            title="Your attention"
-            emptyText="Nothing waiting on you."
-          >
-            {myTasks.map(
-              renderTask
-            )}
-          </TaskSection>
-
-          <TaskSection
-            title="Wife's attention"
-            emptyText="Nothing assigned to your wife."
-          >
-            {wifeTasks.map(
-              renderTask
-            )}
-          </TaskSection>
-
-          <TaskSection
-            title="Family"
-            emptyText="No shared family tasks."
-          >
-            {familyTasks.map(
-              renderTask
-            )}
-          </TaskSection>
-
-          {completedTasks.length >
-            0 && (
-            <details
-              style={{
-                marginTop:
-                  "20px"
-              }}
-            >
-              <summary
-                style={{
-                  cursor:
-                    "pointer",
-                  fontWeight:
-                    600
-                }}
-              >
-                Completed (
-                {
-                  completedTasks.length
-                }
-                )
-              </summary>
-
-              <div
-                style={{
-                  marginTop:
-                    "8px"
-                }}
-              >
-                {completedTasks.map(
-                  renderTask
-                )}
-              </div>
-            </details>
-          )}
-        </>
-      )}
-    </>
-  );
-}
-
-function TaskSection({
-  title,
-  emptyText,
-  children
-}: {
-  title: string;
-  emptyText: string;
-  children:
-    React.ReactNode;
-}) {
-  const childCount =
-    Array.isArray(children)
-      ? children.length
-      : children
-        ? 1
-        : 0;
-
-  return (
-    <div
-      style={{
-        marginTop: "20px"
-      }}
-    >
-      <strong>
-        {title}
-      </strong>
-
-      {childCount === 0 ? (
-        <p
+        <div
           style={{
-            fontSize:
-              "13px",
-            opacity: 0.65
+            marginTop:
+              "20px"
           }}
         >
-          {emptyText}
-        </p>
-      ) : (
-        <div>
-          {children}
+          {openTasks.map(
+            task => (
+              <div
+                key={
+                  task.id
+                }
+                className="task-row"
+              >
+                <input
+                  type="checkbox"
+                  checked={
+                    task.completed
+                  }
+                  onChange={() =>
+                    toggleTask(
+                      task
+                    )
+                  }
+                />
+
+                <div
+                  style={{
+                    flex: 1
+                  }}
+                >
+                  <strong>
+                    {
+                      task.title
+                    }
+                  </strong>
+
+                  <div
+                    className="task-meta"
+                  >
+                    <span>
+                      👤{" "}
+                      {memberName(
+                        task.assigned_to
+                      )}
+                    </span>
+
+                    {task.due_date && (
+                      <span
+                        className={
+                          isOverdue(
+                            task
+                          )
+                            ? "overdue"
+                            : ""
+                        }
+                      >
+                        📅{" "}
+                        {isOverdue(
+                          task
+                        )
+                          ? "Overdue · "
+                          : ""}
+
+                        {formatDate(
+                          task.due_date
+                        )}
+                      </span>
+                    )}
+
+                    {task.priority ===
+                      "high" && (
+                      <span>
+                        🔴 High
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  className="icon-button"
+                  onClick={() =>
+                    deleteTask(
+                      task
+                    )
+                  }
+                >
+                  ✕
+                </button>
+              </div>
+            )
+          )}
         </div>
+      )}
+
+      {completed.length >
+        0 && (
+        <details
+          style={{
+            marginTop:
+              "24px"
+          }}
+        >
+          <summary>
+            Completed (
+            {completed.length})
+          </summary>
+
+          {completed.map(
+            task => (
+              <div
+                key={
+                  task.id
+                }
+                className="completed-row"
+              >
+                <input
+                  type="checkbox"
+                  checked
+                  onChange={() =>
+                    toggleTask(
+                      task
+                    )
+                  }
+                />
+
+                <span>
+                  {
+                    task.title
+                  }
+                </span>
+              </div>
+            )
+          )}
+        </details>
       )}
     </div>
   );
