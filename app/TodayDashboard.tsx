@@ -5,45 +5,35 @@ import {
   useState
 } from "react";
 
-import {
-  createClient
-} from "@supabase/supabase-js";
-
 import CalendarSummary
   from "./CalendarSummary";
 
-const supabaseUrl =
-  "https://wotovotafnfxgljbigju.supabase.co";
+import {
+  supabase
+} from "./lib/supabase";
 
-const supabaseAnonKey =
-  "sb_publishable__S0fvT24O7SwwW6d62txlg_-r7EdF3J";
-
-const supabase = createClient(
-  supabaseUrl,
-  supabaseAnonKey
-);
+import {
+  useFamily
+} from "./FamilyProvider";
 
 type Task = {
   id: string;
   title: string;
   due_date: string | null;
   priority: string;
-  completed: boolean;
 };
 
-type HouseholdItem = {
+type HomeItem = {
   id: string;
   title: string;
-  due_date: string | null;
   category: string;
-  completed: boolean;
+  due_date: string | null;
 };
 
 type Meal = {
   id: string;
   meal_name: string;
   notes: string | null;
-  meal_date: string;
 };
 
 export default function TodayDashboard({
@@ -57,14 +47,22 @@ export default function TodayDashboard({
       | "meals"
   ) => void;
 }) {
-  const [tasks, setTasks] =
+  const {
+    householdId
+  } =
+    useFamily();
+
+  const [
+    tasks,
+    setTasks
+  ] =
     useState<Task[]>([]);
 
   const [
-    household,
-    setHousehold
+    homeItems,
+    setHomeItems
   ] =
-    useState<HouseholdItem[]>([]);
+    useState<HomeItem[]>([]);
 
   const [
     shoppingCount,
@@ -72,11 +70,13 @@ export default function TodayDashboard({
   ] =
     useState(0);
 
-  const [meal, setMeal] =
-    useState<Meal | null>(null);
-
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    meal,
+    setMeal
+  ] =
+    useState<Meal | null>(
+      null
+    );
 
   function todayValue() {
     const date =
@@ -105,14 +105,16 @@ export default function TodayDashboard({
   }
 
   async function loadDashboard() {
-    setLoading(true);
+    if (!householdId) {
+      return;
+    }
 
     const today =
       todayValue();
 
     const [
       taskResult,
-      householdResult,
+      homeResult,
       shoppingResult,
       mealResult
     ] =
@@ -120,7 +122,11 @@ export default function TodayDashboard({
         supabase
           .from("tasks")
           .select(
-            "id,title,due_date,priority,completed"
+            "id,title,due_date,priority"
+          )
+          .eq(
+            "household_id",
+            householdId
           )
           .eq(
             "completed",
@@ -142,7 +148,11 @@ export default function TodayDashboard({
             "household_items"
           )
           .select(
-            "id,title,due_date,category,completed"
+            "id,title,category,due_date"
+          )
+          .eq(
+            "household_id",
+            householdId
           )
           .eq(
             "completed",
@@ -158,11 +168,7 @@ export default function TodayDashboard({
             today
           )
           .order(
-            "due_date",
-            {
-              ascending:
-                true
-            }
+            "due_date"
           )
           .limit(5),
 
@@ -180,6 +186,10 @@ export default function TodayDashboard({
             }
           )
           .eq(
+            "household_id",
+            householdId
+          )
+          .eq(
             "completed",
             false
           ),
@@ -189,7 +199,11 @@ export default function TodayDashboard({
             "meal_plans"
           )
           .select(
-            "id,meal_name,notes,meal_date"
+            "id,meal_name,notes"
+          )
+          .eq(
+            "household_id",
+            householdId
           )
           .eq(
             "meal_date",
@@ -198,21 +212,15 @@ export default function TodayDashboard({
           .maybeSingle()
       ]);
 
-    if (
-      taskResult.data
-    ) {
-      setTasks(
-        taskResult.data
-      );
-    }
+    setTasks(
+      (taskResult.data ||
+        []) as Task[]
+    );
 
-    if (
-      householdResult.data
-    ) {
-      setHousehold(
-        householdResult.data
-      );
-    }
+    setHomeItems(
+      (homeResult.data ||
+        []) as HomeItem[]
+    );
 
     setShoppingCount(
       shoppingResult.count ||
@@ -220,53 +228,96 @@ export default function TodayDashboard({
     );
 
     setMeal(
-      mealResult.data ||
+      (mealResult.data as Meal) ||
         null
     );
-
-    setLoading(false);
   }
 
   useEffect(() => {
-    const start =
-      async () => {
-        const {
-          data
-        } =
-          await supabase.auth.getSession();
+    if (!householdId) {
+      return;
+    }
 
-        if (
-          data.session
-        ) {
-          await loadDashboard();
-        } else {
-          setLoading(false);
-        }
-      };
+    loadDashboard();
 
-    start();
-  }, []);
+    const channel =
+      supabase
+        .channel(
+          `today-${householdId}`
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema:
+              "public",
+            table:
+              "tasks",
+            filter:
+              `household_id=eq.${householdId}`
+          },
+          loadDashboard
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema:
+              "public",
+            table:
+              "shopping_items",
+            filter:
+              `household_id=eq.${householdId}`
+          },
+          loadDashboard
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema:
+              "public",
+            table:
+              "household_items",
+            filter:
+              `household_id=eq.${householdId}`
+          },
+          loadDashboard
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema:
+              "public",
+            table:
+              "meal_plans",
+            filter:
+              `household_id=eq.${householdId}`
+          },
+          loadDashboard
+        )
+        .subscribe();
+
+    return () => {
+      supabase.removeChannel(
+        channel
+      );
+    };
+  }, [householdId]);
 
   return (
     <>
       <div
-        style={{
-          marginBottom:
-            "22px"
-        }}
+        className="today-heading"
       >
         <h1>
           Good morning
         </h1>
 
-        <p
-          style={{
-            opacity: 0.65
-          }}
-        >
-          Here&apos;s what
-          your household needs
-          today.
+        <p>
+          Here&apos;s what your
+          household needs today.
         </p>
       </div>
 
@@ -305,90 +356,82 @@ export default function TodayDashboard({
             </button>
           </div>
 
-          {loading ? (
+          {tasks.length ===
+            0 &&
+          homeItems.length ===
+            0 ? (
             <p>
-              Loading...
+              Nothing urgent
+              right now. 🎉
             </p>
           ) : (
             <>
-              {tasks.length ===
-                0 &&
-              household.length ===
-                0 ? (
-                <p>
-                  Nothing urgent
-                  right now. 🎉
-                </p>
-              ) : (
-                <>
-                  {tasks.map(
-                    task => (
-                      <div
-                        key={
-                          task.id
+              {tasks.map(
+                task => (
+                  <div
+                    key={
+                      task.id
+                    }
+                    className="mini-row"
+                  >
+                    <span>
+                      {task.priority ===
+                      "high"
+                        ? "🔴"
+                        : "✅"}
+                    </span>
+
+                    <div>
+                      <strong>
+                        {
+                          task.title
                         }
-                        className="mini-row"
-                      >
-                        <span>
-                          {task.priority ===
-                          "high"
-                            ? "🔴"
-                            : "✅"}
-                        </span>
+                      </strong>
 
-                        <div>
-                          <strong>
-                            {
-                              task.title
-                            }
-                          </strong>
-
-                          {task.due_date && (
-                            <div
-                              className="muted-small"
-                            >
-                              Due{" "}
-                              {
-                                task.due_date
-                              }
-                            </div>
-                          )}
+                      {task.due_date && (
+                        <div
+                          className="muted-small"
+                        >
+                          Due{" "}
+                          {
+                            task.due_date
+                          }
                         </div>
-                      </div>
-                    )
-                  )}
+                      )}
+                    </div>
+                  </div>
+                )
+              )}
 
-                  {household.map(
-                    item => (
-                      <div
-                        key={
-                          item.id
+              {homeItems.map(
+                item => (
+                  <div
+                    key={
+                      item.id
+                    }
+                    className="mini-row"
+                  >
+                    <span>
+                      🔧
+                    </span>
+
+                    <div>
+                      <strong>
+                        {
+                          item.title
                         }
-                        className="mini-row"
+                      </strong>
+
+                      <div
+                        className="muted-small"
                       >
-                        <span>
-                          🔧
-                        </span>
-
-                        <div>
-                          <strong>
-                            {
-                              item.title
-                            }
-                          </strong>
-
-                          <div
-                            className="muted-small"
-                          >
-                            {
-                              item.category
-                            }
-                          </div>
-                        </div>
+                        {
+                          item.category
+                        }
                       </div>
-                    )
-                  )}
-                </>
+                    </div>
+                  </div>
+                )
               )}
             </>
           )}
@@ -479,13 +522,12 @@ export default function TodayDashboard({
             className="big-number"
           >
             {
-              household.length
+              homeItems.length
             }
           </div>
 
           <p>
-            overdue or due
-            today
+            overdue or due today
           </p>
 
           <button
