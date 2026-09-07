@@ -7,33 +7,20 @@ import {
 } from "react";
 
 import {
-  createClient,
-  Session
-} from "@supabase/supabase-js";
+  supabase
+} from "./lib/supabase";
 
-const supabaseUrl =
-  "https://wotovotafnfxgljbigju.supabase.co";
-
-const supabaseAnonKey =
-  "sb_publishable__S0fvT24O7SwwW6d62txlg_-r7EdF3J";
-
-const supabase = createClient(
-  supabaseUrl,
-  supabaseAnonKey
-);
+import {
+  useFamily
+} from "./FamilyProvider";
 
 type HouseholdItem = {
   id: string;
-  user_id: string;
   title: string;
   category: string;
-  due_date:
-    | string
-    | null;
+  due_date: string | null;
   recurrence: string;
-  notes:
-    | string
-    | null;
+  notes: string | null;
   completed: boolean;
 };
 
@@ -49,13 +36,11 @@ const categories = [
 ];
 
 export default function HouseholdBoard() {
-  const [
+  const {
     session,
-    setSession
-  ] =
-    useState<
-      Session | null
-    >(null);
+    householdId
+  } =
+    useFamily();
 
   const [
     items,
@@ -106,6 +91,10 @@ export default function HouseholdBoard() {
     useState(false);
 
   async function loadItems() {
+    if (!householdId) {
+      return;
+    }
+
     const {
       data,
       error
@@ -114,7 +103,13 @@ export default function HouseholdBoard() {
         .from(
           "household_items"
         )
-        .select("*")
+        .select(
+          "id,title,category,due_date,recurrence,notes,completed"
+        )
+        .eq(
+          "household_id",
+          householdId
+        )
         .order(
           "completed",
           {
@@ -141,53 +136,38 @@ export default function HouseholdBoard() {
   }
 
   useEffect(() => {
-    const start =
-      async () => {
-        const {
-          data
-        } =
-          await supabase.auth.getSession();
+    if (!householdId) {
+      return;
+    }
 
-        setSession(
-          data.session
-        );
+    loadItems();
 
-        if (
-          data.session
-        ) {
-          await loadItems();
-        }
-      };
+    const channel =
+      supabase
+        .channel(
+          `home-${householdId}`
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema:
+              "public",
+            table:
+              "household_items",
+            filter:
+              `household_id=eq.${householdId}`
+          },
+          loadItems
+        )
+        .subscribe();
 
-    start();
-
-    const {
-      data: {
-        subscription
-      }
-    } =
-      supabase.auth.onAuthStateChange(
-        async (
-          _event,
-          currentSession
-        ) => {
-          setSession(
-            currentSession
-          );
-
-          if (
-            currentSession
-          ) {
-            await loadItems();
-          } else {
-            setItems([]);
-          }
-        }
+    return () => {
+      supabase.removeChannel(
+        channel
       );
-
-    return () =>
-      subscription.unsubscribe();
-  }, []);
+    };
+  }, [householdId]);
 
   async function addItem(
     event: FormEvent
@@ -196,6 +176,7 @@ export default function HouseholdBoard() {
 
     if (
       !session ||
+      !householdId ||
       !title.trim()
     ) {
       return;
@@ -211,6 +192,9 @@ export default function HouseholdBoard() {
         .insert({
           user_id:
             session.user.id,
+
+          household_id:
+            householdId,
 
           title:
             title.trim(),
@@ -249,10 +233,10 @@ export default function HouseholdBoard() {
     }
   }
 
-  function getNextDueDate(
+  function nextDueDate(
     item: HouseholdItem
   ) {
-    const base =
+    const date =
       item.due_date
         ? new Date(
             `${item.due_date}T12:00:00`
@@ -263,8 +247,8 @@ export default function HouseholdBoard() {
       item.recurrence ===
       "monthly"
     ) {
-      base.setMonth(
-        base.getMonth() +
+      date.setMonth(
+        date.getMonth() +
           1
       );
     }
@@ -273,8 +257,8 @@ export default function HouseholdBoard() {
       item.recurrence ===
       "quarterly"
     ) {
-      base.setMonth(
-        base.getMonth() +
+      date.setMonth(
+        date.getMonth() +
           3
       );
     }
@@ -283,8 +267,8 @@ export default function HouseholdBoard() {
       item.recurrence ===
       "semiannual"
     ) {
-      base.setMonth(
-        base.getMonth() +
+      date.setMonth(
+        date.getMonth() +
           6
       );
     }
@@ -293,19 +277,18 @@ export default function HouseholdBoard() {
       item.recurrence ===
       "annual"
     ) {
-      base.setFullYear(
-        base.getFullYear() +
+      date.setFullYear(
+        date.getFullYear() +
           1
       );
     }
 
     const year =
-      base.getFullYear();
+      date.getFullYear();
 
     const month =
       String(
-        base.getMonth() +
-          1
+        date.getMonth() + 1
       ).padStart(
         2,
         "0"
@@ -313,7 +296,7 @@ export default function HouseholdBoard() {
 
     const day =
       String(
-        base.getDate()
+        date.getDate()
       ).padStart(
         2,
         "0"
@@ -329,51 +312,17 @@ export default function HouseholdBoard() {
       item.recurrence !==
       "none"
     ) {
-      const nextDate =
-        getNextDueDate(
-          item
-        );
-
-      const {
-        error
-      } =
-        await supabase
-          .from(
-            "household_items"
-          )
-          .update({
-            due_date:
-              nextDate,
-
-            completed:
-              false,
-
-            updated_at:
-              new Date().toISOString()
-          })
-          .eq(
-            "id",
-            item.id
-          );
-
-      if (!error) {
-        await loadItems();
-      }
-
-      return;
-    }
-
-    const {
-      error
-    } =
       await supabase
         .from(
           "household_items"
         )
         .update({
+          due_date:
+            nextDueDate(
+              item
+            ),
           completed:
-            !item.completed,
-
+            false,
           updated_at:
             new Date().toISOString()
         })
@@ -382,9 +331,23 @@ export default function HouseholdBoard() {
           item.id
         );
 
-    if (!error) {
-      await loadItems();
+      return;
     }
+
+    await supabase
+      .from(
+        "household_items"
+      )
+      .update({
+        completed:
+          !item.completed,
+        updated_at:
+          new Date().toISOString()
+      })
+      .eq(
+        "id",
+        item.id
+      );
   }
 
   async function deleteItem(
@@ -398,28 +361,20 @@ export default function HouseholdBoard() {
       return;
     }
 
-    const {
-      error
-    } =
-      await supabase
-        .from(
-          "household_items"
-        )
-        .delete()
-        .eq(
-          "id",
-          item.id
-        );
-
-    if (!error) {
-      await loadItems();
-    }
+    await supabase
+      .from(
+        "household_items"
+      )
+      .delete()
+      .eq(
+        "id",
+        item.id
+      );
   }
 
-  function formatDueDate(
+  function dateLabel(
     value:
-      | string
-      | null
+      string | null
   ) {
     if (!value) {
       return "No due date";
@@ -440,7 +395,7 @@ export default function HouseholdBoard() {
     );
   }
 
-  function isOverdue(
+  function overdue(
     item: HouseholdItem
   ) {
     if (
@@ -449,11 +404,6 @@ export default function HouseholdBoard() {
     ) {
       return false;
     }
-
-    const due =
-      new Date(
-        `${item.due_date}T12:00:00`
-      );
 
     const today =
       new Date();
@@ -465,57 +415,18 @@ export default function HouseholdBoard() {
       0
     );
 
-    return due < today;
-  }
-
-  function recurrenceLabel(
-    value: string
-  ) {
-    const labels:
-      Record<
-        string,
-        string
-      > = {
-        monthly:
-          "Every month",
-        quarterly:
-          "Every 3 months",
-        semiannual:
-          "Every 6 months",
-        annual:
-          "Every year"
-      };
-
     return (
-      labels[value] ||
-      value
+      new Date(
+        `${item.due_date}T12:00:00`
+      ) < today
     );
   }
 
-  const openItems =
+  const open =
     items.filter(
       item =>
         !item.completed
     );
-
-  const completedItems =
-    items.filter(
-      item =>
-        item.completed
-    );
-
-  if (!session) {
-    return (
-      <div>
-        <h2>Home</h2>
-
-        <p>
-          Sign in to manage
-          household maintenance.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div>
@@ -526,9 +437,8 @@ export default function HouseholdBoard() {
           <h2>Home</h2>
 
           <p>
-            Maintenance,
-            repairs and
-            recurring jobs.
+            Maintenance, repairs
+            and recurring jobs.
           </p>
         </div>
 
@@ -536,8 +446,8 @@ export default function HouseholdBoard() {
           className="btn"
           onClick={() =>
             setShowForm(
-              current =>
-                !current
+              value =>
+                !value
             )
           }
         >
@@ -656,8 +566,8 @@ export default function HouseholdBoard() {
                     .value
                 )
             }
-            placeholder="Notes..."
             rows={3}
+            placeholder="Notes..."
           />
 
           <button
@@ -669,13 +579,10 @@ export default function HouseholdBoard() {
         </form>
       )}
 
-      {openItems.length ===
+      {open.length ===
       0 ? (
         <div
-          style={{
-            marginTop:
-              "28px"
-          }}
+          className="empty-state"
         >
           <h3>
             Nothing needs
@@ -689,7 +596,7 @@ export default function HouseholdBoard() {
               "22px"
           }}
         >
-          {openItems.map(
+          {open.map(
             item => (
               <div
                 key={
@@ -703,12 +610,6 @@ export default function HouseholdBoard() {
                     completeItem(
                       item
                     )
-                  }
-                  title={
-                    item.recurrence ===
-                    "none"
-                      ? "Complete"
-                      : "Complete and schedule next occurrence"
                   }
                 >
                   ✓
@@ -726,46 +627,44 @@ export default function HouseholdBoard() {
                   </strong>
 
                   <div
-                    className="muted-small"
+                    className="task-meta"
                   >
-                    {
-                      item.category
-                    }
-                    {" · "}
+                    <span>
+                      {
+                        item.category
+                      }
+                    </span>
 
                     <span
-                      style={{
-                        fontWeight:
-                          isOverdue(
-                            item
-                          )
-                            ? 700
-                            : 400
-                      }}
+                      className={
+                        overdue(
+                          item
+                        )
+                          ? "overdue"
+                          : ""
+                      }
                     >
-                      {isOverdue(
+                      {overdue(
                         item
                       )
                         ? "⚠ Overdue · "
                         : ""}
 
-                      {formatDueDate(
+                      {dateLabel(
                         item.due_date
                       )}
                     </span>
-                  </div>
 
-                  {item.recurrence !==
-                    "none" && (
-                    <div
-                      className="muted-small"
-                    >
-                      🔁{" "}
-                      {recurrenceLabel(
-                        item.recurrence
-                      )}
-                    </div>
-                  )}
+                    {item.recurrence !==
+                      "none" && (
+                      <span>
+                        🔁{" "}
+                        {
+                          item.recurrence
+                        }
+                      </span>
+                    )}
+                  </div>
 
                   {item.notes && (
                     <p>
@@ -790,44 +689,6 @@ export default function HouseholdBoard() {
             )
           )}
         </div>
-      )}
-
-      {completedItems.length >
-        0 && (
-        <details
-          style={{
-            marginTop:
-              "24px"
-          }}
-        >
-          <summary>
-            Completed (
-            {
-              completedItems.length
-            }
-            )
-          </summary>
-
-          {completedItems.map(
-            item => (
-              <div
-                key={
-                  item.id
-                }
-                style={{
-                  padding:
-                    "8px 0",
-                  opacity:
-                    0.55
-                }}
-              >
-                {
-                  item.title
-                }
-              </div>
-            )
-          )}
-        </details>
       )}
     </div>
   );
