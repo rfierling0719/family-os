@@ -7,91 +7,157 @@ import {
 } from "react";
 
 import {
-  createClient,
-  Session
-} from "@supabase/supabase-js";
+  supabase
+} from "./lib/supabase";
 
-const supabaseUrl =
-  "https://wotovotafnfxgljbigju.supabase.co";
-
-const supabaseAnonKey =
-  "sb_publishable__S0fvT24O7SwwW6d62txlg_-r7EdF3J";
-
-const supabase = createClient(
-  supabaseUrl,
-  supabaseAnonKey
-);
+import {
+  useFamily
+} from "./FamilyProvider";
 
 type Meal = {
   id: string;
-  user_id: string;
   meal_date: string;
   meal_name: string;
   notes: string | null;
 };
 
-export default function MealPlanner() {
-  const [session, setSession] =
-    useState<Session | null>(null);
+type Ingredient = {
+  id: string;
+  meal_plan_id: string;
+  name: string;
+  quantity: string | null;
+  category: string;
+};
 
-  const [meals, setMeals] =
+const categories = [
+  "Produce",
+  "Meat",
+  "Dairy",
+  "Bakery",
+  "Pantry",
+  "Frozen",
+  "Other"
+];
+
+export default function MealPlanner() {
+  const {
+    session,
+    householdId
+  } =
+    useFamily();
+
+  const [
+    meals,
+    setMeals
+  ] =
     useState<Meal[]>([]);
 
-  const [mealDate, setMealDate] =
+  const [
+    ingredients,
+    setIngredients
+  ] =
+    useState<
+      Ingredient[]
+    >([]);
+
+  const [
+    selectedDate,
+    setSelectedDate
+  ] =
     useState("");
 
-  const [mealName, setMealName] =
+  const [
+    mealName,
+    setMealName
+  ] =
     useState("");
 
-  const [notes, setNotes] =
+  const [
+    notes,
+    setNotes
+  ] =
     useState("");
 
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    ingredientName,
+    setIngredientName
+  ] =
+    useState("");
 
-  function dateToInput(date: Date) {
-    const year = date.getFullYear();
-    const month = String(
-      date.getMonth() + 1
-    ).padStart(2, "0");
-    const day = String(
-      date.getDate()
-    ).padStart(2, "0");
+  const [
+    ingredientQuantity,
+    setIngredientQuantity
+  ] =
+    useState("");
+
+  const [
+    ingredientCategory,
+    setIngredientCategory
+  ] =
+    useState("Other");
+
+  const [
+    message,
+    setMessage
+  ] =
+    useState("");
+
+  function dateValue(
+    date: Date
+  ) {
+    const year =
+      date.getFullYear();
+
+    const month =
+      String(
+        date.getMonth() + 1
+      ).padStart(
+        2,
+        "0"
+      );
+
+    const day =
+      String(
+        date.getDate()
+      ).padStart(
+        2,
+        "0"
+      );
 
     return `${year}-${month}-${day}`;
   }
 
-  function getWeekDates() {
-    const today = new Date();
+  function weekDates() {
+    const today =
+      new Date();
 
     const monday =
       new Date(today);
 
-    const day =
-      monday.getDay();
-
     const difference =
-      day === 0
+      today.getDay() ===
+      0
         ? -6
-        : 1 - day;
+        : 1 -
+          today.getDay();
 
     monday.setDate(
       monday.getDate() +
         difference
     );
 
-    monday.setHours(
-      0,
-      0,
-      0,
-      0
-    );
-
     return Array.from(
-      { length: 7 },
-      (_, index) => {
+      {
+        length: 7
+      },
+      (
+        _,
+        index
+      ) => {
         const date =
-          new Date(monday);
+          new Date(
+            monday
+          );
 
         date.setDate(
           monday.getDate() +
@@ -103,29 +169,39 @@ export default function MealPlanner() {
     );
   }
 
-  const weekDates =
-    getWeekDates();
+  const days =
+    weekDates();
 
-  async function loadMeals() {
-    setLoading(true);
+  async function loadData() {
+    if (!householdId) {
+      return;
+    }
 
     const start =
-      dateToInput(
-        weekDates[0]
+      dateValue(
+        days[0]
       );
 
     const end =
-      dateToInput(
-        weekDates[6]
+      dateValue(
+        days[6]
       );
 
     const {
-      data,
+      data: mealData,
       error
     } =
       await supabase
-        .from("meal_plans")
-        .select("*")
+        .from(
+          "meal_plans"
+        )
+        .select(
+          "id,meal_date,meal_name,notes"
+        )
+        .eq(
+          "household_id",
+          householdId
+        )
         .gte(
           "meal_date",
           start
@@ -135,80 +211,151 @@ export default function MealPlanner() {
           end
         )
         .order(
-          "meal_date",
-          {
-            ascending: true
-          }
+          "meal_date"
         );
 
     if (error) {
       console.error(
-        "Unable to load meals:",
         error
       );
 
-      setMeals([]);
-    } else {
-      setMeals(
-        (data || []) as Meal[]
-      );
+      return;
     }
 
-    setLoading(false);
+    const loadedMeals =
+      (mealData ||
+        []) as Meal[];
+
+    setMeals(
+      loadedMeals
+    );
+
+    if (
+      loadedMeals.length ===
+      0
+    ) {
+      setIngredients(
+        []
+      );
+
+      return;
+    }
+
+    const {
+      data:
+        ingredientData
+    } =
+      await supabase
+        .from(
+          "meal_ingredients"
+        )
+        .select(
+          "id,meal_plan_id,name,quantity,category"
+        )
+        .eq(
+          "household_id",
+          householdId
+        )
+        .in(
+          "meal_plan_id",
+          loadedMeals.map(
+            meal =>
+              meal.id
+          )
+        );
+
+    setIngredients(
+      (ingredientData ||
+        []) as Ingredient[]
+    );
   }
 
   useEffect(() => {
-    const start =
-      async () => {
-        const {
-          data
-        } =
-          await supabase.auth.getSession();
+    if (!householdId) {
+      return;
+    }
 
-        setSession(
-          data.session
-        );
+    loadData();
 
-        if (
-          data.session
-        ) {
-          await loadMeals();
-        } else {
-          setLoading(false);
-        }
-      };
-
-    start();
-
-    const {
-      data: {
-        subscription
-      }
-    } =
-      supabase.auth.onAuthStateChange(
-        async (
-          _event,
-          currentSession
-        ) => {
-          setSession(
-            currentSession
-          );
-
-          if (
-            currentSession
-          ) {
-            await loadMeals();
-          } else {
-            setMeals([]);
-            setLoading(false);
-          }
-        }
-      );
+    const channel =
+      supabase
+        .channel(
+          `meals-${householdId}`
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema:
+              "public",
+            table:
+              "meal_plans",
+            filter:
+              `household_id=eq.${householdId}`
+          },
+          loadData
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema:
+              "public",
+            table:
+              "meal_ingredients",
+            filter:
+              `household_id=eq.${householdId}`
+          },
+          loadData
+        )
+        .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      supabase.removeChannel(
+        channel
+      );
     };
-  }, []);
+  }, [householdId]);
+
+  function selectedMeal() {
+    return meals.find(
+      meal =>
+        meal.meal_date ===
+        selectedDate
+    );
+  }
+
+  function chooseDay(
+    date: Date
+  ) {
+    const value =
+      dateValue(
+        date
+      );
+
+    const existing =
+      meals.find(
+        meal =>
+          meal.meal_date ===
+          value
+      );
+
+    setSelectedDate(
+      value
+    );
+
+    setMealName(
+      existing?.meal_name ||
+        ""
+    );
+
+    setNotes(
+      existing?.notes ||
+        ""
+    );
+
+    setMessage("");
+  }
 
   async function saveMeal(
     event: FormEvent
@@ -217,7 +364,8 @@ export default function MealPlanner() {
 
     if (
       !session ||
-      !mealDate ||
+      !householdId ||
+      !selectedDate ||
       !mealName.trim()
     ) {
       return;
@@ -227,14 +375,19 @@ export default function MealPlanner() {
       error
     } =
       await supabase
-        .from("meal_plans")
+        .from(
+          "meal_plans"
+        )
         .upsert(
           {
             user_id:
               session.user.id,
 
+            household_id:
+              householdId,
+
             meal_date:
-              mealDate,
+              selectedDate,
 
             meal_name:
               mealName.trim(),
@@ -248,390 +401,477 @@ export default function MealPlanner() {
           },
           {
             onConflict:
-              "user_id,meal_date"
+              "household_id,meal_date"
           }
         );
 
     if (error) {
       console.error(
-        "Unable to save meal:",
         error
       );
 
-      alert(
+      setMessage(
         "Meal could not be saved."
+      );
+    } else {
+      setMessage(
+        "Meal saved."
+      );
+
+      await loadData();
+    }
+  }
+
+  async function addIngredient(
+    event: FormEvent
+  ) {
+    event.preventDefault();
+
+    const meal =
+      selectedMeal();
+
+    if (
+      !meal ||
+      !householdId ||
+      !ingredientName.trim()
+    ) {
+      return;
+    }
+
+    const {
+      error
+    } =
+      await supabase
+        .from(
+          "meal_ingredients"
+        )
+        .insert({
+          household_id:
+            householdId,
+
+          meal_plan_id:
+            meal.id,
+
+          name:
+            ingredientName.trim(),
+
+          quantity:
+            ingredientQuantity.trim() ||
+            null,
+
+          category:
+            ingredientCategory
+        });
+
+    if (!error) {
+      setIngredientName(
+        ""
+      );
+
+      setIngredientQuantity(
+        ""
+      );
+
+      setIngredientCategory(
+        "Other"
+      );
+
+      await loadData();
+    }
+  }
+
+  async function deleteIngredient(
+    id: string
+  ) {
+    await supabase
+      .from(
+        "meal_ingredients"
+      )
+      .delete()
+      .eq(
+        "id",
+        id
+      );
+
+    await loadData();
+  }
+
+  async function addIngredientsToShopping() {
+    const meal =
+      selectedMeal();
+
+    if (
+      !meal ||
+      !session ||
+      !householdId
+    ) {
+      return;
+    }
+
+    const mealIngredients =
+      ingredients.filter(
+        ingredient =>
+          ingredient.meal_plan_id ===
+          meal.id
+      );
+
+    if (
+      mealIngredients.length ===
+      0
+    ) {
+      setMessage(
+        "Add ingredients first."
       );
 
       return;
     }
 
-    setMealName("");
-    setNotes("");
-
-    await loadMeals();
-  }
-
-  async function deleteMeal(
-    meal: Meal
-  ) {
     const {
       error
     } =
       await supabase
-        .from("meal_plans")
-        .delete()
-        .eq(
-          "id",
-          meal.id
+        .from(
+          "shopping_items"
+        )
+        .insert(
+          mealIngredients.map(
+            ingredient => ({
+              user_id:
+                session.user.id,
+
+              household_id:
+                householdId,
+
+              name:
+                ingredient.name,
+
+              quantity:
+                ingredient.quantity,
+
+              category:
+                ingredient.category,
+
+              completed:
+                false
+            })
+          )
         );
 
-    if (!error) {
-      await loadMeals();
+    if (error) {
+      setMessage(
+        "Ingredients could not be added."
+      );
+    } else {
+      setMessage(
+        `${mealIngredients.length} ingredient${
+          mealIngredients.length ===
+          1
+            ? ""
+            : "s"
+        } added to Shopping.`
+      );
     }
   }
 
-  function mealForDate(
-    date: Date
-  ) {
-    const value =
-      dateToInput(date);
+  const currentMeal =
+    selectedMeal();
 
-    return meals.find(
-      meal =>
-        meal.meal_date ===
-        value
-    );
-  }
-
-  function selectDay(
-    date: Date
-  ) {
-    const value =
-      dateToInput(date);
-
-    const existing =
-      mealForDate(date);
-
-    setMealDate(value);
-
-    setMealName(
-      existing?.meal_name ||
-        ""
-    );
-
-    setNotes(
-      existing?.notes ||
-        ""
-    );
-  }
-
-  if (!session) {
-    return (
-      <div>
-        <h2>Meals</h2>
-
-        <p>
-          Sign in to use meal
-          planning.
-        </p>
-      </div>
-    );
-  }
+  const currentIngredients =
+    currentMeal
+      ? ingredients.filter(
+          item =>
+            item.meal_plan_id ===
+            currentMeal.id
+        )
+      : [];
 
   return (
     <div>
-      <div>
-        <h2>
-          Weekly meals
-        </h2>
+      <h2>
+        Weekly meals
+      </h2>
 
-        <p
-          style={{
-            opacity: 0.7
-          }}
-        >
-          Plan dinner for the
-          week.
-        </p>
+      <p>
+        Plan dinner and send
+        ingredients directly to
+        Shopping.
+      </p>
+
+      <div
+        className="meal-week-grid"
+      >
+        {days.map(
+          date => {
+            const value =
+              dateValue(
+                date
+              );
+
+            const meal =
+              meals.find(
+                item =>
+                  item.meal_date ===
+                  value
+              );
+
+            return (
+              <button
+                key={
+                  value
+                }
+                className={
+                  selectedDate ===
+                  value
+                    ? "meal-day selected"
+                    : "meal-day"
+                }
+                onClick={() =>
+                  chooseDay(
+                    date
+                  )
+                }
+              >
+                <span
+                  className="muted-small"
+                >
+                  {date.toLocaleDateString(
+                    [],
+                    {
+                      weekday:
+                        "short"
+                    }
+                  )}
+                </span>
+
+                <strong>
+                  {date.toLocaleDateString(
+                    [],
+                    {
+                      month:
+                        "short",
+                      day:
+                        "numeric"
+                    }
+                  )}
+                </strong>
+
+                <div
+                  className="meal-day-name"
+                >
+                  {meal
+                    ? meal.meal_name
+                    : "No meal planned"}
+                </div>
+              </button>
+            );
+          }
+        )}
       </div>
 
-      {loading ? (
-        <p>
-          Loading meals...
-        </p>
-      ) : (
+      {selectedDate && (
         <div
-          className="meal-week-grid"
-          style={{
-            marginTop:
-              "20px"
-          }}
+          className="meal-editor-grid"
         >
-          {weekDates.map(
-            date => {
-              const meal =
-                mealForDate(
-                  date
-                );
-
-              const selected =
-                mealDate ===
-                dateToInput(
-                  date
-                );
-
-              return (
-                <button
-                  key={
-                    dateToInput(
-                      date
-                    )
-                  }
-                  onClick={() =>
-                    selectDay(
-                      date
-                    )
-                  }
-                  style={{
-                    textAlign:
-                      "left",
-                    border:
-                      selected
-                        ? "2px solid currentColor"
-                        : "1px solid rgba(128,128,128,.2)",
-                    borderRadius:
-                      "12px",
-                    padding:
-                      "14px",
-                    background:
-                      "transparent",
-                    cursor:
-                      "pointer",
-                    minHeight:
-                      "120px"
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize:
-                        "12px",
-                      opacity:
-                        0.65
-                    }}
-                  >
-                    {date.toLocaleDateString(
-                      [],
-                      {
-                        weekday:
-                          "short"
-                      }
-                    )}
-                  </div>
-
-                  <strong>
-                    {date.toLocaleDateString(
-                      [],
-                      {
-                        month:
-                          "short",
-                        day:
-                          "numeric"
-                      }
-                    )}
-                  </strong>
-
-                  <div
-                    style={{
-                      marginTop:
-                        "12px"
-                    }}
-                  >
-                    {meal ? (
-                      <>
-                        <strong>
-                          {
-                            meal.meal_name
-                          }
-                        </strong>
-
-                        {meal.notes && (
-                          <div
-                            style={{
-                              fontSize:
-                                "12px",
-                              opacity:
-                                0.65,
-                              marginTop:
-                                "4px"
-                            }}
-                          >
-                            {
-                              meal.notes
-                            }
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <span
-                        style={{
-                          opacity:
-                            0.45
-                        }}
-                      >
-                        No meal
-                        planned
-                      </span>
-                    )}
-                  </div>
-                </button>
-              );
+          <form
+            className="form-card"
+            onSubmit={
+              saveMeal
             }
-          )}
-        </div>
-      )}
-
-      {mealDate && (
-        <form
-          onSubmit={
-            saveMeal
-          }
-          style={{
-            marginTop:
-              "24px",
-            padding:
-              "18px",
-            border:
-              "1px solid rgba(128,128,128,.2)",
-            borderRadius:
-              "12px"
-          }}
-        >
-          <h3>
-            {new Date(
-              `${mealDate}T12:00:00`
-            ).toLocaleDateString(
-              [],
-              {
-                weekday:
-                  "long",
-                month:
-                  "long",
-                day:
-                  "numeric"
-              }
-            )}
-          </h3>
-
-          <input
-            value={
-              mealName
-            }
-            onChange={
-              event =>
-                setMealName(
-                  event.target
-                    .value
-                )
-            }
-            placeholder="Dinner"
-            required
-            style={{
-              width:
-                "100%",
-              boxSizing:
-                "border-box",
-              padding:
-                "10px",
-              marginTop:
-                "10px"
-            }}
-          />
-
-          <textarea
-            value={
-              notes
-            }
-            onChange={
-              event =>
-                setNotes(
-                  event.target
-                    .value
-                )
-            }
-            placeholder="Notes, sides, prep..."
-            rows={3}
-            style={{
-              width:
-                "100%",
-              boxSizing:
-                "border-box",
-              padding:
-                "10px",
-              marginTop:
-                "10px"
-            }}
-          />
-
-          <div
-            style={{
-              display:
-                "flex",
-              gap:
-                "10px",
-              marginTop:
-                "10px"
-            }}
           >
+            <h3>
+              Dinner
+            </h3>
+
+            <input
+              value={
+                mealName
+              }
+              onChange={
+                event =>
+                  setMealName(
+                    event.target
+                      .value
+                  )
+              }
+              placeholder="Chicken Mediterranean bowls"
+              required
+            />
+
+            <textarea
+              value={
+                notes
+              }
+              onChange={
+                event =>
+                  setNotes(
+                    event.target
+                      .value
+                  )
+              }
+              rows={3}
+              placeholder="Sides, prep notes..."
+            />
+
             <button
               className="btn"
               type="submit"
             >
               Save meal
             </button>
+          </form>
 
-            {meals.some(
-              meal =>
-                meal.meal_date ===
-                mealDate
-            ) && (
-              <button
-                type="button"
-                onClick={() => {
-                  const meal =
-                    meals.find(
-                      item =>
-                        item.meal_date ===
-                        mealDate
-                    );
+          <div
+            className="form-card"
+          >
+            <div
+              className="section-header"
+            >
+              <h3>
+                Ingredients
+              </h3>
 
-                  if (meal) {
-                    deleteMeal(
-                      meal
-                    );
-
-                    setMealName(
-                      ""
-                    );
-
-                    setNotes(
-                      ""
-                    );
+              {currentIngredients.length >
+                0 && (
+                <button
+                  className="btn secondary"
+                  onClick={
+                    addIngredientsToShopping
                   }
-                }}
-                style={{
-                  border:
-                    "none",
-                  background:
-                    "transparent",
-                  cursor:
-                    "pointer"
-                }}
-              >
-                Remove
-              </button>
+                >
+                  Add to Shopping
+                </button>
+              )}
+            </div>
+
+            {!currentMeal ? (
+              <p>
+                Save the meal first,
+                then add ingredients.
+              </p>
+            ) : (
+              <>
+                <form
+                  className="ingredient-form"
+                  onSubmit={
+                    addIngredient
+                  }
+                >
+                  <input
+                    value={
+                      ingredientName
+                    }
+                    onChange={
+                      event =>
+                        setIngredientName(
+                          event.target
+                            .value
+                        )
+                    }
+                    placeholder="Ingredient"
+                    required
+                  />
+
+                  <input
+                    value={
+                      ingredientQuantity
+                    }
+                    onChange={
+                      event =>
+                        setIngredientQuantity(
+                          event.target
+                            .value
+                        )
+                    }
+                    placeholder="Qty"
+                  />
+
+                  <select
+                    value={
+                      ingredientCategory
+                    }
+                    onChange={
+                      event =>
+                        setIngredientCategory(
+                          event.target
+                            .value
+                        )
+                    }
+                  >
+                    {categories.map(
+                      item => (
+                        <option
+                          key={
+                            item
+                          }
+                        >
+                          {
+                            item
+                          }
+                        </option>
+                      )
+                    )}
+                  </select>
+
+                  <button
+                    className="btn"
+                    type="submit"
+                  >
+                    +
+                  </button>
+                </form>
+
+                {currentIngredients.map(
+                  ingredient => (
+                    <div
+                      key={
+                        ingredient.id
+                      }
+                      className="ingredient-row"
+                    >
+                      <div>
+                        <strong>
+                          {
+                            ingredient.name
+                          }
+                        </strong>
+
+                        <div
+                          className="muted-small"
+                        >
+                          {ingredient.quantity ||
+                            "No quantity"}
+                          {" · "}
+                          {
+                            ingredient.category
+                          }
+                        </div>
+                      </div>
+
+                      <button
+                        className="icon-button"
+                        onClick={() =>
+                          deleteIngredient(
+                            ingredient.id
+                          )
+                        }
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )
+                )}
+              </>
             )}
           </div>
-        </form>
+        </div>
+      )}
+
+      {message && (
+        <div
+          className="status-message"
+        >
+          {message}
+        </div>
       )}
     </div>
   );
