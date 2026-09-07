@@ -1,6 +1,13 @@
 import DashboardShell
   from "./DashboardShell";
 
+import FamilyProvider
+  from "./FamilyProvider";
+
 export default function Home() {
-  return <DashboardShell />;
+  return (
+    <FamilyProvider>
+      <DashboardShell />
+    </FamilyProvider>
+  );
 }
