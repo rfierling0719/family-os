@@ -1,9 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createClient, Session } from "@supabase/supabase-js";
+import {
+  useEffect,
+  useState
+} from "react";
 
-const supabaseUrl = "https://wotovotafnfxgljbigju.supabase.co";
+import {
+  createClient,
+  Session
+} from "@supabase/supabase-js";
+
+const supabaseUrl =
+  "https://wotovotafnfxgljbigju.supabase.co";
 
 const supabaseAnonKey =
   "sb_publishable__S0fvT24O7SwwW6d62txlg_-r7EdF3J";
@@ -16,60 +24,37 @@ const supabase = createClient(
 type CalendarEvent = {
   id: string;
   summary: string;
+
   start?: {
     dateTime?: string;
     date?: string;
   } | null;
+
   end?: {
     dateTime?: string;
     date?: string;
   } | null;
+
   location?: string | null;
 };
 
 export default function GoogleCalendarButton() {
-  const [status, setStatus] = useState("Checking connection...");
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loadingEvents, setLoadingEvents] = useState(false);
+  const [status, setStatus] =
+    useState(
+      "Checking connection..."
+    );
 
-  async function saveGoogleRefreshToken(session: Session) {
-    if (!session.provider_refresh_token) {
-      return true;
-    }
+  const [events, setEvents] =
+    useState<CalendarEvent[]>([]);
 
-    try {
-      const response = await fetch("/api/google/store-token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          refresh_token: session.provider_refresh_token
-        })
-      });
+  const [
+    loadingEvents,
+    setLoadingEvents
+  ] = useState(false);
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        console.error(
-          "Unable to save Google refresh token:",
-          result
-        );
-        return false;
-      }
-
-      return true;
-    } catch (error) {
-      console.error(
-        "Unable to save Google refresh token:",
-        error
-      );
-      return false;
-    }
-  }
-
-  async function loadCalendarEvents(session: Session) {
+  async function loadCalendarEvents(
+    session: Session
+  ) {
     setLoadingEvents(true);
 
     try {
@@ -77,27 +62,47 @@ export default function GoogleCalendarButton() {
         `${supabaseUrl}/functions/v1/google-calendar`,
         {
           method: "POST",
+
           headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            apikey: supabaseAnonKey,
-            "Content-Type": "application/json"
-          }
+            Authorization:
+              `Bearer ${session.access_token}`,
+
+            apikey:
+              supabaseAnonKey,
+
+            "Content-Type":
+              "application/json"
+          },
+
+          body: JSON.stringify({
+            refresh_token:
+              session.provider_refresh_token ||
+              undefined
+          })
         }
       );
 
-      const result = await response.json();
+      const result =
+        await response.json();
 
-      if (!response.ok || !result.success) {
+      if (
+        !response.ok ||
+        !result.success
+      ) {
         console.error(
           "Calendar Edge Function error:",
           result
         );
 
-        if (response.status === 401) {
+        if (
+          response.status === 401
+        ) {
           setStatus(
             "Google Calendar authorization needs to be refreshed"
           );
-        } else if (response.status === 404) {
+        } else if (
+          response.status === 404
+        ) {
           setStatus(
             "Google Calendar needs to be connected"
           );
@@ -111,8 +116,13 @@ export default function GoogleCalendarButton() {
         return;
       }
 
-      setEvents(result.events || []);
-      setStatus("Google Calendar connected ✓");
+      setEvents(
+        result.events || []
+      );
+
+      setStatus(
+        "Google Calendar connected ✓"
+      );
     } catch (error) {
       console.error(
         "Unable to load calendar events:",
@@ -133,58 +143,65 @@ export default function GoogleCalendarButton() {
     session: Session | null
   ) {
     if (!session) {
-      setStatus("Not connected");
+      setStatus(
+        "Not connected"
+      );
+
       setEvents([]);
+
       return;
     }
 
-    if (session.provider_refresh_token) {
-      setStatus(
-        "Saving Google Calendar connection..."
-      );
+    setStatus(
+      "Loading Google Calendar..."
+    );
 
-      const saved =
-        await saveGoogleRefreshToken(session);
-
-      if (!saved) {
-        setStatus(
-          "Calendar connected, but token could not be saved"
-        );
-        return;
-      }
-    }
-
-    setStatus("Loading Google Calendar...");
-
-    await loadCalendarEvents(session);
+    await loadCalendarEvents(
+      session
+    );
   }
 
   useEffect(() => {
-    const checkSession = async () => {
-      const { data, error } =
-        await supabase.auth.getSession();
-
-      if (error) {
-        console.error(
-          "Unable to read Supabase session:",
+    const checkSession =
+      async () => {
+        const {
+          data,
           error
-        );
-        setStatus("Unable to check connection");
-        return;
-      }
+        } =
+          await supabase.auth.getSession();
 
-      await handleSession(data.session);
-    };
+        if (error) {
+          console.error(
+            "Unable to read Supabase session:",
+            error
+          );
+
+          setStatus(
+            "Unable to check connection"
+          );
+
+          return;
+        }
+
+        await handleSession(
+          data.session
+        );
+      };
 
     checkSession();
 
     const {
-      data: { subscription }
-    } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        handleSession(session);
+      data: {
+        subscription
       }
-    );
+    } =
+      supabase.auth.onAuthStateChange(
+        (_event, session) => {
+          handleSession(
+            session
+          );
+        }
+      );
 
     return () => {
       subscription.unsubscribe();
@@ -192,22 +209,32 @@ export default function GoogleCalendarButton() {
   }, []);
 
   async function connectGoogleCalendar() {
-    setStatus("Connecting...");
+    setStatus(
+      "Connecting..."
+    );
 
     const { error } =
-      await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          scopes:
-            "https://www.googleapis.com/auth/calendar.events",
-          redirectTo:
-            "https://family-os.r-fierling.workers.dev",
-          queryParams: {
-            access_type: "offline",
-            prompt: "consent"
+      await supabase.auth.signInWithOAuth(
+        {
+          provider: "google",
+
+          options: {
+            scopes:
+              "https://www.googleapis.com/auth/calendar.events",
+
+            redirectTo:
+              "https://family-os.r-fierling.workers.dev",
+
+            queryParams: {
+              access_type:
+                "offline",
+
+              prompt:
+                "consent"
+            }
           }
         }
-      });
+      );
 
     if (error) {
       console.error(
@@ -215,8 +242,13 @@ export default function GoogleCalendarButton() {
         error
       );
 
-      setStatus("Connection failed");
-      alert(error.message);
+      setStatus(
+        "Connection failed"
+      );
+
+      alert(
+        error.message
+      );
     }
   }
 
@@ -231,28 +263,39 @@ export default function GoogleCalendarButton() {
       return "";
     }
 
-    const date = new Date(value);
+    const date =
+      new Date(value);
 
-    if (event.start?.dateTime) {
-      return date.toLocaleString([], {
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit"
-      });
+    if (
+      event.start?.dateTime
+    ) {
+      return date.toLocaleString(
+        [],
+        {
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit"
+        }
+      );
     }
 
-    return date.toLocaleDateString([], {
-      month: "short",
-      day: "numeric"
-    });
+    return date.toLocaleDateString(
+      [],
+      {
+        month: "short",
+        day: "numeric"
+      }
+    );
   }
 
   return (
     <div>
       <button
         className="btn"
-        onClick={connectGoogleCalendar}
+        onClick={
+          connectGoogleCalendar
+        }
       >
         Connect Google Calendar
       </button>
@@ -279,8 +322,14 @@ export default function GoogleCalendarButton() {
 
       {!loadingEvents &&
         events.length > 0 && (
-          <div style={{ marginTop: "14px" }}>
-            <strong>Upcoming events</strong>
+          <div
+            style={{
+              marginTop: "14px"
+            }}
+          >
+            <strong>
+              Upcoming events
+            </strong>
 
             <ul
               style={{
@@ -288,42 +337,55 @@ export default function GoogleCalendarButton() {
                 paddingLeft: "20px"
               }}
             >
-              {events.map((event) => (
-                <li
-                  key={event.id}
-                  style={{
-                    marginBottom: "8px"
-                  }}
-                >
-                  <strong>
-                    {event.summary ||
-                      "Untitled event"}
-                  </strong>
-
-                  <br />
-
-                  <span
+              {events.map(
+                (event) => (
+                  <li
+                    key={
+                      event.id
+                    }
                     style={{
-                      fontSize: "13px"
+                      marginBottom:
+                        "8px"
                     }}
                   >
-                    {formatEventDate(event)}
-                  </span>
+                    <strong>
+                      {event.summary ||
+                        "Untitled event"}
+                    </strong>
 
-                  {event.location && (
-                    <>
-                      <br />
-                      <span
-                        style={{
-                          fontSize: "13px"
-                        }}
-                      >
-                        📍 {event.location}
-                      </span>
-                    </>
-                  )}
-                </li>
-              ))}
+                    <br />
+
+                    <span
+                      style={{
+                        fontSize:
+                          "13px"
+                      }}
+                    >
+                      {formatEventDate(
+                        event
+                      )}
+                    </span>
+
+                    {event.location && (
+                      <>
+                        <br />
+
+                        <span
+                          style={{
+                            fontSize:
+                              "13px"
+                          }}
+                        >
+                          📍{" "}
+                          {
+                            event.location
+                          }
+                        </span>
+                      </>
+                    )}
+                  </li>
+                )
+              )}
             </ul>
           </div>
         )}
