@@ -3,8 +3,8 @@
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  "https://wotovotafnfxgljbigju.supabase.co",
+  "sb_publishable__S0fvT24O7SwwW6d62txlg_-r7EdF3J"
 );
 
 export default function GoogleCalendarButton() {
@@ -28,7 +28,7 @@ export default function GoogleCalendarButton() {
   }
 
   return (
-    <button onClick={connectGoogleCalendar}>
+    <button className="btn" onClick={connectGoogleCalendar}>
       Connect Google Calendar
     </button>
   );
