@@ -5,10 +5,6 @@ import {
   useState
 } from "react";
 
-import {
-  createClient
-} from "@supabase/supabase-js";
-
 import CalendarSummary
   from "./CalendarSummary";
 
@@ -27,10 +23,16 @@ import MealPlanner
 import TodayDashboard
   from "./TodayDashboard";
 
-const supabase = createClient(
-  "https://wotovotafnfxgljbigju.supabase.co",
-  "sb_publishable__S0fvT24O7SwwW6d62txlg_-r7EdF3J"
-);
+import HouseholdSettings
+  from "./HouseholdSettings";
+
+import {
+  supabase
+} from "./lib/supabase";
+
+import {
+  useFamily
+} from "./FamilyProvider";
 
 type Section =
   | "today"
@@ -39,7 +41,8 @@ type Section =
   | "meals"
   | "shopping"
   | "home"
-  | "assistant";
+  | "assistant"
+  | "settings";
 
 type Counts = {
   tasks: number;
@@ -90,6 +93,14 @@ const navItems: {
 ];
 
 export default function DashboardShell() {
+  const {
+    session,
+    household,
+    householdId,
+    loading
+  } =
+    useFamily();
+
   const [
     activeSection,
     setActiveSection
@@ -109,6 +120,10 @@ export default function DashboardShell() {
     });
 
   async function loadCounts() {
+    if (!householdId) {
+      return;
+    }
+
     const [
       taskResult,
       shoppingResult,
@@ -125,6 +140,10 @@ export default function DashboardShell() {
               head:
                 true
             }
+          )
+          .eq(
+            "household_id",
+            householdId
           )
           .eq(
             "completed",
@@ -145,6 +164,10 @@ export default function DashboardShell() {
             }
           )
           .eq(
+            "household_id",
+            householdId
+          )
+          .eq(
             "completed",
             false
           ),
@@ -161,6 +184,10 @@ export default function DashboardShell() {
               head:
                 true
             }
+          )
+          .eq(
+            "household_id",
+            householdId
           )
           .eq(
             "completed",
@@ -184,25 +211,80 @@ export default function DashboardShell() {
   }
 
   useEffect(() => {
+    if (!householdId) {
+      return;
+    }
+
     loadCounts();
 
-    const interval =
-      window.setInterval(
-        loadCounts,
-        15000
+    const channel =
+      supabase
+        .channel(
+          `nav-${householdId}`
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema:
+              "public",
+            table:
+              "tasks",
+            filter:
+              `household_id=eq.${householdId}`
+          },
+          loadCounts
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema:
+              "public",
+            table:
+              "shopping_items",
+            filter:
+              `household_id=eq.${householdId}`
+          },
+          loadCounts
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema:
+              "public",
+            table:
+              "household_items",
+            filter:
+              `household_id=eq.${householdId}`
+          },
+          loadCounts
+        )
+        .subscribe();
+
+    return () => {
+      supabase.removeChannel(
+        channel
       );
+    };
+  }, [householdId]);
 
-    return () =>
-      window.clearInterval(
-        interval
-      );
-  }, []);
+  function navigate(
+    section: Section
+  ) {
+    setActiveSection(
+      section
+    );
 
-  useEffect(() => {
-    loadCounts();
-  }, [activeSection]);
+    window.scrollTo({
+      top: 0,
+      behavior:
+        "smooth"
+    });
+  }
 
-  function badgeFor(
+  function badge(
     section: Section
   ) {
     if (
@@ -229,18 +311,20 @@ export default function DashboardShell() {
     return 0;
   }
 
-  function navigate(
-    section: Section
-  ) {
-    setActiveSection(
-      section
-    );
+  if (loading) {
+    return (
+      <main
+        className="startup-screen"
+      >
+        <h2>
+          🏠 Family OS
+        </h2>
 
-    window.scrollTo({
-      top: 0,
-      behavior:
-        "smooth"
-    });
+        <p>
+          Loading your household...
+        </p>
+      </main>
+    );
   }
 
   function renderSection() {
@@ -292,6 +376,15 @@ export default function DashboardShell() {
           </article>
         );
 
+      case "settings":
+        return (
+          <article
+            className="workspace-card"
+          >
+            <HouseholdSettings />
+          </article>
+        );
+
       case "assistant":
         return (
           <article
@@ -302,43 +395,49 @@ export default function DashboardShell() {
             </h2>
 
             <p>
-              This section will
-              eventually combine
-              your calendar,
-              tasks, shopping,
-              meals and home
-              maintenance into
-              recommendations and
-              reminders.
+              This will become the
+              proactive layer over
+              your household data.
             </p>
 
             <div
-              style={{
-                marginTop:
-                  "24px"
-              }}
+              className="assistant-summary"
             >
-              <h3>
-                Current household
-              </h3>
+              <div>
+                <strong>
+                  {
+                    counts.tasks
+                  }
+                </strong>
 
-              <p>
-                ✅{" "}
-                {counts.tasks} open
-                tasks
-              </p>
+                <span>
+                  Open tasks
+                </span>
+              </div>
 
-              <p>
-                🛒{" "}
-                {counts.shopping}{" "}
-                shopping items
-              </p>
+              <div>
+                <strong>
+                  {
+                    counts.shopping
+                  }
+                </strong>
 
-              <p>
-                🏡{" "}
-                {counts.home} home
-                items
-              </p>
+                <span>
+                  Shopping items
+                </span>
+              </div>
+
+              <div>
+                <strong>
+                  {
+                    counts.home
+                  }
+                </strong>
+
+                <span>
+                  Home items
+                </span>
+              </div>
             </div>
           </article>
         );
@@ -365,8 +464,13 @@ export default function DashboardShell() {
         <aside
           className="family-sidebar"
         >
-          <div
+          <button
             className="brand"
+            onClick={() =>
+              navigate(
+                "today"
+              )
+            }
           >
             <div
               className="brand-icon"
@@ -382,18 +486,19 @@ export default function DashboardShell() {
               <div
                 className="muted-small"
               >
-                Command centre
+                {household?.name ||
+                  "Our Home"}
               </div>
             </div>
-          </div>
+          </button>
 
           <nav
             className="sidebar-nav"
           >
             {navItems.map(
               item => {
-                const badge =
-                  badgeFor(
+                const count =
+                  badge(
                     item.id
                   );
 
@@ -432,15 +537,15 @@ export default function DashboardShell() {
                       }
                     </span>
 
-                    {badge >
+                    {count >
                       0 && (
                       <span
                         className="nav-badge"
                       >
-                        {badge >
+                        {count >
                         99
                           ? "99+"
-                          : badge}
+                          : count}
                       </span>
                     )}
                   </button>
@@ -448,6 +553,40 @@ export default function DashboardShell() {
               }
             )}
           </nav>
+
+          <div
+            className="sidebar-account"
+          >
+            <button
+              className={
+                activeSection ===
+                "settings"
+                  ? "nav-button active"
+                  : "nav-button"
+              }
+              onClick={() =>
+                navigate(
+                  "settings"
+                )
+              }
+            >
+              <span
+                className="nav-icon"
+              >
+                ⚙️
+              </span>
+
+              <span>
+                Settings
+              </span>
+            </button>
+
+            <div
+              className="account-email"
+            >
+              {session?.user.email}
+            </div>
+          </div>
         </aside>
 
         <section
@@ -460,44 +599,63 @@ export default function DashboardShell() {
       <nav
         className="mobile-nav"
       >
-        {navItems
-          .filter(
-            item =>
-              item.id !==
-              "assistant"
-          )
-          .map(
-            item => (
-              <button
-                key={
+        {[
+          navItems[0],
+          navItems[2],
+          navItems[3],
+          navItems[4],
+          navItems[5]
+        ].map(
+          item => (
+            <button
+              key={
+                item.id
+              }
+              className={
+                activeSection ===
+                item.id
+                  ? "mobile-nav-item active"
+                  : "mobile-nav-item"
+              }
+              onClick={() =>
+                navigate(
                   item.id
+                )
+              }
+            >
+              <span>
+                {
+                  item.icon
                 }
-                className={
-                  activeSection ===
-                  item.id
-                    ? "mobile-nav-item active"
-                    : "mobile-nav-item"
-                }
-                onClick={() =>
-                  navigate(
-                    item.id
-                  )
-                }
-              >
-                <span>
-                  {
-                    item.icon
-                  }
-                </span>
+              </span>
 
-                <small>
-                  {
-                    item.label
-                  }
-                </small>
-              </button>
+              <small>
+                {
+                  item.label
+                }
+              </small>
+            </button>
+          )
+        )}
+
+        <button
+          className={
+            activeSection ===
+            "settings"
+              ? "mobile-nav-item active"
+              : "mobile-nav-item"
+          }
+          onClick={() =>
+            navigate(
+              "settings"
             )
-          )}
+          }
+        >
+          <span>⚙️</span>
+          <small>
+            Settings
+          </small>
+        </button>
       </nav>
 
       <style jsx global>{`
@@ -509,6 +667,13 @@ export default function DashboardShell() {
           margin: 0;
         }
 
+        button,
+        input,
+        select,
+        textarea {
+          font: inherit;
+        }
+
         .family-shell {
           display: grid;
           grid-template-columns: 240px minmax(0, 1fr);
@@ -516,28 +681,48 @@ export default function DashboardShell() {
         }
 
         .family-sidebar {
-          padding: 24px 16px;
+          padding: 20px 14px;
           border-right: 1px solid rgba(128, 128, 128, 0.18);
           position: sticky;
           top: 0;
           height: 100vh;
+          display: flex;
+          flex-direction: column;
         }
 
         .brand {
           display: flex;
           align-items: center;
           gap: 10px;
-          padding: 0 8px;
+          padding: 6px 8px;
+          border: none;
+          background: transparent;
+          cursor: pointer;
+          text-align: left;
         }
 
         .brand-icon {
-          font-size: 25px;
+          font-size: 26px;
         }
 
         .sidebar-nav {
-          margin-top: 28px;
+          margin-top: 26px;
           display: grid;
           gap: 5px;
+        }
+
+        .sidebar-account {
+          margin-top: auto;
+          border-top: 1px solid rgba(128, 128, 128, 0.15);
+          padding-top: 12px;
+        }
+
+        .account-email {
+          padding: 8px 12px 0;
+          font-size: 10px;
+          opacity: 0.5;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .nav-button {
@@ -551,11 +736,10 @@ export default function DashboardShell() {
           padding: 11px 12px;
           cursor: pointer;
           text-align: left;
-          font: inherit;
         }
 
         .nav-button:hover {
-          background: rgba(128, 128, 128, 0.10);
+          background: rgba(128, 128, 128, 0.1);
         }
 
         .nav-button.active {
@@ -596,9 +780,19 @@ export default function DashboardShell() {
           min-height: calc(100vh - 68px);
         }
 
+        .today-heading {
+          margin-bottom: 22px;
+        }
+
+        .today-heading p {
+          opacity: 0.65;
+        }
+
         .today-primary-grid {
           display: grid;
-          grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+          grid-template-columns:
+            minmax(0, 1.2fr)
+            minmax(300px, 0.8fr);
           gap: 18px;
         }
 
@@ -609,16 +803,8 @@ export default function DashboardShell() {
           margin-top: 18px;
         }
 
-        .meal-week-grid {
-          display: grid;
-          grid-template-columns: repeat(7, minmax(120px, 1fr));
-          gap: 10px;
-          overflow-x: auto;
-          padding-bottom: 6px;
-        }
-
-        .card-heading,
-        .section-header {
+        .section-header,
+        .card-heading {
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -630,11 +816,35 @@ export default function DashboardShell() {
           opacity: 0.62;
         }
 
-        .mini-row {
+        .mini-row,
+        .task-row,
+        .shopping-row,
+        .maintenance-row,
+        .ingredient-row,
+        .member-row,
+        .completed-row {
           display: flex;
-          gap: 10px;
-          padding: 10px 0;
+          align-items: center;
+          gap: 11px;
+          padding: 11px 0;
           border-bottom: 1px solid rgba(128, 128, 128, 0.14);
+        }
+
+        .maintenance-row {
+          align-items: flex-start;
+        }
+
+        .task-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px 14px;
+          margin-top: 4px;
+          font-size: 12px;
+          opacity: 0.7;
+        }
+
+        .overdue {
+          font-weight: 700;
         }
 
         .big-number {
@@ -646,29 +856,44 @@ export default function DashboardShell() {
 
         .text-button,
         .icon-button {
-          background: transparent;
           border: none;
+          background: transparent;
           cursor: pointer;
-          padding: 4px;
-          font: inherit;
         }
 
         .text-button {
           font-weight: 600;
         }
 
-        .form-card {
+        .btn {
+          border: none;
+          border-radius: 9px;
+          padding: 10px 14px;
+          cursor: pointer;
+          font-weight: 600;
+        }
+
+        .btn.secondary {
+          background: rgba(128, 128, 128, 0.15);
+        }
+
+        .form-card,
+        .settings-panel {
           margin-top: 20px;
-          padding: 16px;
-          border: 1px solid rgba(128, 128, 128, 0.2);
+          padding: 18px;
+          border: 1px solid rgba(128, 128, 128, 0.18);
           border-radius: 12px;
+        }
+
+        .form-card {
           display: grid;
           gap: 10px;
         }
 
         .form-card input,
         .form-card select,
-        .form-card textarea {
+        .form-card textarea,
+        .settings-panel input {
           width: 100%;
           padding: 10px;
         }
@@ -679,21 +904,161 @@ export default function DashboardShell() {
           gap: 10px;
         }
 
-        .maintenance-row {
+        .shopping-add {
+          display: grid;
+          grid-template-columns: 2fr 0.7fr 1fr auto;
+          gap: 10px;
+          margin-top: 20px;
+        }
+
+        .shopping-add input,
+        .shopping-add select {
+          min-width: 0;
+          padding: 10px;
+        }
+
+        .shopping-group {
+          margin-bottom: 24px;
+        }
+
+        .meal-week-grid {
+          display: grid;
+          grid-template-columns: repeat(7, minmax(120px, 1fr));
+          gap: 10px;
+          overflow-x: auto;
+          margin-top: 20px;
+          padding-bottom: 5px;
+        }
+
+        .meal-day {
+          min-height: 120px;
+          text-align: left;
+          background: transparent;
+          border: 1px solid rgba(128, 128, 128, 0.2);
+          border-radius: 12px;
+          padding: 13px;
+          cursor: pointer;
           display: flex;
-          align-items: flex-start;
-          gap: 12px;
-          padding: 14px 0;
-          border-bottom: 1px solid rgba(128, 128, 128, 0.14);
+          flex-direction: column;
+          gap: 3px;
+        }
+
+        .meal-day.selected {
+          border-width: 2px;
+        }
+
+        .meal-day-name {
+          margin-top: 12px;
+          font-size: 13px;
+        }
+
+        .meal-editor-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 18px;
+        }
+
+        .ingredient-form {
+          display: grid;
+          grid-template-columns: 2fr 0.7fr 1fr auto;
+          gap: 8px;
+        }
+
+        .ingredient-form input,
+        .ingredient-form select {
+          min-width: 0;
+          padding: 9px;
         }
 
         .complete-circle {
+          flex: 0 0 auto;
           width: 30px;
           height: 30px;
           border-radius: 50%;
           border: 1px solid rgba(128, 128, 128, 0.4);
           background: transparent;
           cursor: pointer;
+        }
+
+        .empty-state {
+          margin-top: 28px;
+          text-align: center;
+          padding: 25px;
+          opacity: 0.75;
+        }
+
+        .settings-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 18px;
+        }
+
+        .field-label {
+          display: block;
+          font-size: 12px;
+          margin-bottom: 6px;
+          opacity: 0.7;
+        }
+
+        .invite-code {
+          font-size: 27px;
+          font-weight: 700;
+          letter-spacing: 4px;
+          margin: 8px 0 12px;
+        }
+
+        .member-avatar {
+          width: 38px;
+          height: 38px;
+          display: grid;
+          place-items: center;
+          border-radius: 50%;
+          background: rgba(128, 128, 128, 0.18);
+          font-weight: 700;
+        }
+
+        .member-role {
+          margin-left: auto;
+          font-size: 11px;
+          text-transform: capitalize;
+          opacity: 0.6;
+        }
+
+        .status-message {
+          margin-top: 18px;
+          padding: 12px 14px;
+          border-radius: 10px;
+          background: rgba(128, 128, 128, 0.12);
+        }
+
+        .assistant-summary {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 14px;
+          margin-top: 24px;
+        }
+
+        .assistant-summary div {
+          padding: 18px;
+          border: 1px solid rgba(128, 128, 128, 0.16);
+          border-radius: 12px;
+        }
+
+        .assistant-summary strong {
+          display: block;
+          font-size: 30px;
+        }
+
+        .assistant-summary span {
+          font-size: 12px;
+          opacity: 0.65;
+        }
+
+        .startup-screen {
+          min-height: 100vh;
+          display: grid;
+          place-content: center;
+          text-align: center;
         }
 
         .mobile-nav {
@@ -718,12 +1083,20 @@ export default function DashboardShell() {
           }
 
           .today-primary-grid,
-          .today-secondary-grid {
+          .today-secondary-grid,
+          .meal-editor-grid,
+          .settings-grid {
             grid-template-columns: 1fr;
           }
 
-          .form-grid-3 {
+          .form-grid-3,
+          .shopping-add,
+          .ingredient-form {
             grid-template-columns: 1fr;
+          }
+
+          .assistant-summary {
+            grid-template-columns: repeat(3, 1fr);
           }
 
           .mobile-nav {
@@ -743,7 +1116,7 @@ export default function DashboardShell() {
 
           .mobile-nav-item {
             flex: 1;
-            min-width: 58px;
+            min-width: 55px;
             border: none;
             background: transparent;
             border-radius: 10px;
@@ -760,7 +1133,7 @@ export default function DashboardShell() {
           }
 
           .mobile-nav-item span {
-            font-size: 19px;
+            font-size: 18px;
           }
 
           .mobile-nav-item small {
@@ -783,6 +1156,10 @@ export default function DashboardShell() {
           .section-header,
           .card-heading {
             align-items: flex-start;
+          }
+
+          .assistant-summary {
+            grid-template-columns: 1fr;
           }
         }
       `}</style>
