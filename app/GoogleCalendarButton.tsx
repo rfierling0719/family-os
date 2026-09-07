@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, Session } from "@supabase/supabase-js";
 
 const supabase = createClient(
   "https://wotovotafnfxgljbigju.supabase.co",
@@ -9,44 +9,78 @@ const supabase = createClient(
 );
 
 export default function GoogleCalendarButton() {
-  const [status, setStatus] = useState("Not connected");
+  const [status, setStatus] = useState("Checking connection...");
+
+  async function saveGoogleToken(session: Session) {
+    if (!session.provider_refresh_token) {
+      return false;
+    }
+
+    try {
+      const response = await fetch("/api/google/store-token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          refresh_token: session.provider_refresh_token
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        console.error("Unable to save Google token:", result);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Unable to save Google token:", error);
+      return false;
+    }
+  }
+
+  async function handleSession(session: Session | null) {
+    if (!session) {
+      setStatus("Not connected");
+      return;
+    }
+
+    if (!session.provider_token) {
+      setStatus("Signed in, but no Google Calendar token found");
+      return;
+    }
+
+    if (!session.provider_refresh_token) {
+      setStatus("Connected, but no refresh token received");
+      return;
+    }
+
+    setStatus("Saving Google Calendar connection...");
+
+    const saved = await saveGoogleToken(session);
+
+    if (saved) {
+      setStatus("Google Calendar connected ✓");
+    } else {
+      setStatus("Calendar connected, but token could not be saved");
+    }
+  }
 
   useEffect(() => {
     const checkSession = async () => {
       const { data } = await supabase.auth.getSession();
-      const session = data.session;
-
-      if (!session) {
-        setStatus("Not connected");
-        return;
-      }
-
-      if (session.provider_token && session.provider_refresh_token) {
-        setStatus("Google Calendar connected ✓");
-      } else if (session.provider_token) {
-        setStatus("Connected, but no refresh token received");
-      } else {
-        setStatus("Signed in, but no Google Calendar token found");
-      }
+      await handleSession(data.session);
     };
 
     checkSession();
 
     const {
-      data: { subscription },
+      data: { subscription }
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        setStatus("Not connected");
-        return;
-      }
-
-      if (session.provider_token && session.provider_refresh_token) {
-        setStatus("Google Calendar connected ✓");
-      } else if (session.provider_token) {
-        setStatus("Connected, but no refresh token received");
-      } else {
-        setStatus("Signed in, but no Google Calendar token found");
-      }
+      handleSession(session);
     });
 
     return () => {
@@ -55,6 +89,8 @@ export default function GoogleCalendarButton() {
   }, []);
 
   async function connectGoogleCalendar() {
+    setStatus("Connecting...");
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -62,13 +98,14 @@ export default function GoogleCalendarButton() {
         redirectTo: "https://family-os.r-fierling.workers.dev",
         queryParams: {
           access_type: "offline",
-          prompt: "consent",
-        },
-      },
+          prompt: "consent"
+        }
+      }
     });
 
     if (error) {
       console.error(error);
+      setStatus("Connection failed");
       alert(error.message);
     }
   }
