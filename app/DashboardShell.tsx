@@ -289,7 +289,9 @@ export default function DashboardShell() {
             filter:
               `household_id=eq.${householdId}`
           },
-          loadCounts
+          () => {
+            loadCounts();
+          }
         )
         .on(
           "postgres_changes",
@@ -302,7 +304,9 @@ export default function DashboardShell() {
             filter:
               `household_id=eq.${householdId}`
           },
-          loadCounts
+          () => {
+            loadCounts();
+          }
         )
         .on(
           "postgres_changes",
@@ -315,7 +319,9 @@ export default function DashboardShell() {
             filter:
               `household_id=eq.${householdId}`
           },
-          loadCounts
+          () => {
+            loadCounts();
+          }
         )
         .subscribe();
 
@@ -1013,27 +1019,74 @@ export default function DashboardShell() {
             var(--text-soft);
         }
 
-        input,
+        input:not(
+          [type="checkbox"]
+        ):not(
+          [type="radio"]
+        ),
         select,
         textarea {
           width: 100%;
           min-height: 42px;
+
           border:
             1px solid
             var(--border-strong);
+
           border-radius:
             var(--radius-sm);
+
           background:
             var(--surface);
+
           color:
             var(--text);
+
           padding:
             9px 11px;
+
           outline: none;
+
           transition:
             border-color 0.15s ease,
             box-shadow 0.15s ease,
             background 0.15s ease;
+        }
+
+        input[type="checkbox"] {
+          width: 17px;
+          height: 17px;
+
+          min-width: 17px;
+          min-height: 17px;
+
+          flex: 0 0 17px;
+
+          margin: 0;
+
+          padding: 0;
+
+          cursor: pointer;
+
+          accent-color:
+            var(--accent);
+        }
+
+        input[type="radio"] {
+          width: 17px;
+          height: 17px;
+
+          min-width: 17px;
+          min-height: 17px;
+
+          margin: 0;
+
+          padding: 0;
+
+          cursor: pointer;
+
+          accent-color:
+            var(--accent);
         }
 
         textarea {
@@ -1046,11 +1099,16 @@ export default function DashboardShell() {
             #a2aab5;
         }
 
-        input:focus,
+        input:not(
+          [type="checkbox"]
+        ):not(
+          [type="radio"]
+        ):focus,
         select:focus,
         textarea:focus {
           border-color:
             #8fa5ea;
+
           box-shadow:
             0 0 0 3px
             rgba(
@@ -1063,21 +1121,26 @@ export default function DashboardShell() {
 
         .family-shell {
           display: grid;
+
           grid-template-columns:
             244px
             minmax(0, 1fr);
+
           min-height: 100vh;
         }
 
         .family-sidebar {
           position: sticky;
           top: 0;
+
           height: 100vh;
+
           padding:
             22px 14px 16px;
 
           background:
             var(--surface);
+
           border-right:
             1px solid
             var(--border);
@@ -1088,18 +1151,22 @@ export default function DashboardShell() {
 
         .brand {
           width: 100%;
+
           display: flex;
           align-items: center;
+
           gap: 11px;
 
           padding:
             4px 7px 18px;
 
           border: none;
+
           background:
             transparent;
 
           cursor: pointer;
+
           text-align: left;
         }
 
@@ -1115,6 +1182,7 @@ export default function DashboardShell() {
 
           background:
             var(--navy);
+
           color:
             white;
 
@@ -1140,17 +1208,22 @@ export default function DashboardShell() {
         .brand-copy strong {
           font-size: 15px;
           font-weight: 760;
+
           color:
             var(--text);
         }
 
         .brand-copy span {
           margin-top: 1px;
+
           font-size: 11px;
+
           color:
             var(--text-muted);
+
           white-space: nowrap;
           overflow: hidden;
+
           text-overflow:
             ellipsis;
         }
@@ -1161,10 +1234,13 @@ export default function DashboardShell() {
 
           color:
             var(--text-muted);
+
           font-size: 10px;
           font-weight: 700;
+
           letter-spacing:
             0.08em;
+
           text-transform:
             uppercase;
         }
@@ -1180,12 +1256,14 @@ export default function DashboardShell() {
 
           display: flex;
           align-items: center;
+
           gap: 10px;
 
           padding:
             9px 10px;
 
           border: none;
+
           border-radius:
             10px;
 
@@ -1207,6 +1285,7 @@ export default function DashboardShell() {
         .nav-button:hover {
           background:
             #f3f5f7;
+
           color:
             var(--text);
         }
@@ -1214,8 +1293,10 @@ export default function DashboardShell() {
         .nav-button.active {
           background:
             var(--accent-soft);
+
           color:
             var(--accent);
+
           font-weight: 700;
         }
 
@@ -1262,6 +1343,7 @@ export default function DashboardShell() {
 
           background:
             #eef0f4;
+
           color:
             var(--text-soft);
 
@@ -1273,12 +1355,14 @@ export default function DashboardShell() {
         .nav-badge {
           background:
             white;
+
           color:
             var(--accent);
         }
 
         .sidebar-account {
           margin-top: auto;
+
           padding-top: 14px;
 
           border-top:
@@ -1291,12 +1375,14 @@ export default function DashboardShell() {
 
           display: flex;
           align-items: center;
+
           gap: 10px;
 
           padding:
             8px 9px;
 
           border: none;
+
           border-radius:
             11px;
 
@@ -1330,6 +1416,7 @@ export default function DashboardShell() {
 
           background:
             var(--navy);
+
           color: white;
 
           font-size: 13px;
@@ -1341,21 +1428,26 @@ export default function DashboardShell() {
           flex: 1;
 
           display: flex;
+
           flex-direction:
             column;
         }
 
         .account-copy strong {
           font-size: 12px;
+
           white-space:
             nowrap;
+
           overflow: hidden;
+
           text-overflow:
             ellipsis;
         }
 
         .account-copy span {
           font-size: 10px;
+
           color:
             var(--text-muted);
         }
@@ -1363,6 +1455,7 @@ export default function DashboardShell() {
         .account-arrow {
           color:
             var(--text-muted);
+
           font-size: 18px;
         }
 
@@ -1376,22 +1469,29 @@ export default function DashboardShell() {
 
         .page-header {
           max-width: 1320px;
-          margin: 0 auto 22px;
+
+          margin:
+            0 auto 22px;
 
           display: flex;
+
           align-items:
             flex-end;
+
           justify-content:
             space-between;
+
           gap: 20px;
         }
 
         .page-header h1 {
-          margin: 2px 0 4px;
+          margin:
+            2px 0 4px;
         }
 
         .page-header p {
           margin: 0;
+
           font-size: 13px;
         }
 
@@ -1400,9 +1500,12 @@ export default function DashboardShell() {
             var(--accent);
 
           font-size: 10px;
+
           font-weight: 750;
+
           letter-spacing:
             0.08em;
+
           text-transform:
             uppercase;
         }
@@ -1410,6 +1513,7 @@ export default function DashboardShell() {
         .household-pill {
           display: flex;
           align-items: center;
+
           gap: 8px;
 
           padding:
@@ -1418,6 +1522,7 @@ export default function DashboardShell() {
           border:
             1px solid
             var(--border);
+
           border-radius:
             999px;
 
@@ -1433,6 +1538,7 @@ export default function DashboardShell() {
             var(--text-soft);
 
           font-size: 11px;
+
           font-weight: 600;
         }
 
@@ -1458,6 +1564,7 @@ export default function DashboardShell() {
 
         .page-content {
           max-width: 1320px;
+
           margin: 0 auto;
         }
 
@@ -1467,12 +1574,12 @@ export default function DashboardShell() {
               100vh - 150px
             );
 
-          padding:
-            26px;
+          padding: 26px;
 
           border:
             1px solid
             var(--border);
+
           border-radius:
             var(--radius-lg);
 
@@ -1493,14 +1600,17 @@ export default function DashboardShell() {
 
         .today-heading p {
           margin: 0;
+
           font-size: 13px;
         }
 
         .today-primary-grid {
           display: grid;
+
           grid-template-columns:
             minmax(0, 1.25fr)
             minmax(300px, 0.75fr);
+
           gap: 18px;
         }
 
@@ -1513,6 +1623,7 @@ export default function DashboardShell() {
           border:
             1px solid
             var(--border);
+
           border-radius:
             var(--radius-lg);
 
@@ -1537,22 +1648,28 @@ export default function DashboardShell() {
 
         .today-secondary-grid {
           display: grid;
+
           grid-template-columns:
             repeat(
               3,
               minmax(0, 1fr)
             );
+
           gap: 18px;
+
           margin-top: 18px;
         }
 
         .section-header,
         .card-heading {
           display: flex;
+
           align-items:
             center;
+
           justify-content:
             space-between;
+
           gap: 14px;
         }
 
@@ -1565,6 +1682,7 @@ export default function DashboardShell() {
         .muted-small {
           color:
             var(--text-muted);
+
           font-size: 11px;
         }
 
@@ -1576,7 +1694,10 @@ export default function DashboardShell() {
         .member-row,
         .completed-row {
           display: flex;
-          align-items: center;
+
+          align-items:
+            center;
+
           gap: 11px;
 
           padding:
@@ -1606,6 +1727,7 @@ export default function DashboardShell() {
         .task-meta {
           display: flex;
           flex-wrap: wrap;
+
           gap:
             5px 12px;
 
@@ -1620,6 +1742,7 @@ export default function DashboardShell() {
         .overdue {
           color:
             var(--danger);
+
           font-weight: 700;
         }
 
@@ -1630,8 +1753,11 @@ export default function DashboardShell() {
             var(--text);
 
           font-size: 38px;
+
           font-weight: 760;
+
           line-height: 1;
+
           letter-spacing:
             -0.04em;
         }
@@ -1640,6 +1766,7 @@ export default function DashboardShell() {
           padding: 0;
 
           border: none;
+
           background:
             transparent;
 
@@ -1649,6 +1776,7 @@ export default function DashboardShell() {
           cursor: pointer;
 
           font-size: 12px;
+
           font-weight: 700;
         }
 
@@ -1667,6 +1795,7 @@ export default function DashboardShell() {
           flex: 0 0 auto;
 
           border: none;
+
           border-radius:
             8px;
 
@@ -1686,6 +1815,7 @@ export default function DashboardShell() {
         .icon-button:hover {
           background:
             #f1f3f6;
+
           color:
             var(--danger);
         }
@@ -1697,6 +1827,7 @@ export default function DashboardShell() {
             9px 14px;
 
           border: none;
+
           border-radius:
             9px;
 
@@ -1709,6 +1840,7 @@ export default function DashboardShell() {
           cursor: pointer;
 
           font-size: 12px;
+
           font-weight: 700;
 
           box-shadow:
@@ -1750,9 +1882,12 @@ export default function DashboardShell() {
 
         .btn:disabled {
           opacity: 0.5;
+
           cursor:
             not-allowed;
+
           transform: none;
+
           box-shadow: none;
         }
 
@@ -1774,6 +1909,7 @@ export default function DashboardShell() {
         .btn.secondary:hover {
           background:
             var(--surface-soft);
+
           color:
             var(--text);
         }
@@ -1784,11 +1920,13 @@ export default function DashboardShell() {
           padding: 18px;
 
           display: grid;
+
           gap: 11px;
 
           border:
             1px solid
             var(--border);
+
           border-radius:
             var(--radius-md);
 
@@ -1798,16 +1936,19 @@ export default function DashboardShell() {
 
         .form-grid-3 {
           display: grid;
+
           grid-template-columns:
             repeat(
               3,
               minmax(0, 1fr)
             );
+
           gap: 10px;
         }
 
         .shopping-add {
           display: grid;
+
           grid-template-columns:
             2fr
             0.7fr
@@ -1871,14 +2012,18 @@ export default function DashboardShell() {
 
         summary {
           cursor: pointer;
+
           color:
             var(--text-soft);
+
           font-size: 12px;
+
           font-weight: 700;
         }
 
         .meal-week-grid {
           display: grid;
+
           grid-template-columns:
             repeat(
               7,
@@ -1893,6 +2038,7 @@ export default function DashboardShell() {
           overflow-x: auto;
 
           margin-top: 20px;
+
           padding-bottom: 5px;
         }
 
@@ -1902,8 +2048,10 @@ export default function DashboardShell() {
           padding: 13px;
 
           display: flex;
+
           flex-direction:
             column;
+
           gap: 3px;
 
           text-align: left;
@@ -1911,6 +2059,7 @@ export default function DashboardShell() {
           border:
             1px solid
             var(--border);
+
           border-radius:
             var(--radius-md);
 
@@ -1969,11 +2118,13 @@ export default function DashboardShell() {
             var(--text-soft);
 
           font-size: 12px;
+
           line-height: 1.4;
         }
 
         .meal-editor-grid {
           display: grid;
+
           grid-template-columns:
             minmax(0, 1fr)
             minmax(0, 1fr);
@@ -1983,6 +2134,7 @@ export default function DashboardShell() {
 
         .ingredient-form {
           display: grid;
+
           grid-template-columns:
             2fr
             0.7fr
@@ -2004,11 +2156,13 @@ export default function DashboardShell() {
           flex: 0 0 auto;
 
           display: grid;
+
           place-items: center;
 
           border:
             1px solid
             var(--border-strong);
+
           border-radius:
             50%;
 
@@ -2029,8 +2183,10 @@ export default function DashboardShell() {
         .complete-circle:hover {
           background:
             #edf8f3;
+
           border-color:
             #a8d9c7;
+
           color:
             var(--success);
         }
@@ -2065,6 +2221,7 @@ export default function DashboardShell() {
 
         .settings-grid {
           display: grid;
+
           grid-template-columns:
             repeat(
               2,
@@ -2097,6 +2254,7 @@ export default function DashboardShell() {
             var(--text-soft);
 
           font-size: 11px;
+
           font-weight: 650;
         }
 
@@ -2108,7 +2266,9 @@ export default function DashboardShell() {
             var(--navy);
 
           font-size: 28px;
+
           font-weight: 800;
+
           letter-spacing:
             5px;
         }
@@ -2118,6 +2278,7 @@ export default function DashboardShell() {
           height: 38px;
 
           display: grid;
+
           place-items: center;
 
           flex: 0 0 auto;
@@ -2131,6 +2292,7 @@ export default function DashboardShell() {
           color: white;
 
           font-size: 13px;
+
           font-weight: 800;
         }
 
@@ -2150,6 +2312,7 @@ export default function DashboardShell() {
             var(--text-muted);
 
           font-size: 9px;
+
           font-weight: 750;
 
           text-transform:
@@ -2183,8 +2346,10 @@ export default function DashboardShell() {
 
         .assistant-intro {
           display: flex;
+
           align-items:
             flex-start;
+
           gap: 14px;
         }
 
@@ -2193,6 +2358,7 @@ export default function DashboardShell() {
           height: 42px;
 
           display: grid;
+
           place-items: center;
 
           flex: 0 0 auto;
@@ -2215,6 +2381,7 @@ export default function DashboardShell() {
 
         .assistant-summary {
           display: grid;
+
           grid-template-columns:
             repeat(
               3,
@@ -2232,6 +2399,7 @@ export default function DashboardShell() {
           border:
             1px solid
             var(--border);
+
           border-radius:
             var(--radius-md);
 
@@ -2249,7 +2417,9 @@ export default function DashboardShell() {
             var(--text);
 
           font-size: 34px;
+
           line-height: 1;
+
           letter-spacing:
             -0.04em;
         }
@@ -2259,6 +2429,7 @@ export default function DashboardShell() {
             var(--text-muted);
 
           font-size: 10px;
+
           font-weight: 700;
 
           text-transform:
@@ -2272,6 +2443,7 @@ export default function DashboardShell() {
           min-height: 100vh;
 
           display: grid;
+
           place-content: center;
 
           text-align: center;
@@ -2299,6 +2471,7 @@ export default function DashboardShell() {
 
           .page-header {
             margin-bottom: 18px;
+
             align-items:
               flex-start;
           }
@@ -2338,9 +2511,11 @@ export default function DashboardShell() {
 
           .mobile-nav {
             position: fixed;
+
             left: 10px;
             right: 10px;
             bottom: 10px;
+
             z-index: 100;
 
             display: flex;
@@ -2379,16 +2554,20 @@ export default function DashboardShell() {
 
           .mobile-nav-item {
             min-width: 54px;
+
             flex: 1;
 
             padding:
               7px 3px;
 
             display: grid;
+
             place-items: center;
+
             gap: 2px;
 
             border: none;
+
             border-radius:
               10px;
 
@@ -2413,6 +2592,7 @@ export default function DashboardShell() {
 
           .mobile-icon {
             font-size: 17px;
+
             font-weight: 700;
           }
 
@@ -2457,6 +2637,7 @@ export default function DashboardShell() {
 
           .invite-code {
             font-size: 22px;
+
             letter-spacing:
               3px;
           }
