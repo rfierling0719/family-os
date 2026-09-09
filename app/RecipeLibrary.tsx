@@ -14,7 +14,6 @@ import {
   useFamily
 } from "./FamilyProvider";
 
-
 export type Recipe = {
   id: string;
   name: string;
@@ -23,7 +22,6 @@ export type Recipe = {
   favorite: boolean;
 };
 
-
 export type RecipeIngredient = {
   id: string;
   recipe_id: string;
@@ -31,7 +29,6 @@ export type RecipeIngredient = {
   quantity: string | null;
   category: string;
 };
-
 
 const recipeCategories = [
   "Dinner",
@@ -45,7 +42,6 @@ const recipeCategories = [
   "Other"
 ];
 
-
 const ingredientCategories = [
   "Produce",
   "Meat",
@@ -57,13 +53,11 @@ const ingredientCategories = [
   "Other"
 ];
 
-
 type Props = {
   recipes: Recipe[];
   ingredients: RecipeIngredient[];
   reload: () => Promise<void>;
 };
-
 
 export default function RecipeLibrary({
   recipes,
@@ -75,78 +69,57 @@ export default function RecipeLibrary({
     householdId
   } = useFamily();
 
-
   const [
     selectedRecipeId,
     setSelectedRecipeId
-  ] =
-    useState<string | null>(
-      null
-    );
-
+  ] = useState<string | null>(
+    null
+  );
 
   const [
     recipeName,
     setRecipeName
-  ] =
-    useState("");
-
+  ] = useState("");
 
   const [
     recipeDescription,
     setRecipeDescription
-  ] =
-    useState("");
-
+  ] = useState("");
 
   const [
     recipeCategory,
     setRecipeCategory
-  ] =
-    useState("Dinner");
-
+  ] = useState("Dinner");
 
   const [
     ingredientName,
     setIngredientName
-  ] =
-    useState("");
-
+  ] = useState("");
 
   const [
     ingredientQuantity,
     setIngredientQuantity
-  ] =
-    useState("");
-
+  ] = useState("");
 
   const [
     ingredientCategory,
     setIngredientCategory
-  ] =
-    useState("Other");
-
+  ] = useState("Other");
 
   const [
     message,
     setMessage
-  ] =
-    useState("");
-
+  ] = useState("");
 
   const [
     savingRecipe,
     setSavingRecipe
-  ] =
-    useState(false);
-
+  ] = useState(false);
 
   const [
     savingIngredient,
     setSavingIngredient
-  ] =
-    useState(false);
-
+  ] = useState(false);
 
   useEffect(() => {
     if (
@@ -161,8 +134,7 @@ export default function RecipeLibrary({
     }
 
     if (
-      recipes.length >
-      0
+      recipes.length > 0
     ) {
       setSelectedRecipeId(
         recipes[0].id
@@ -177,14 +149,12 @@ export default function RecipeLibrary({
     selectedRecipeId
   ]);
 
-
   const selectedRecipe =
     recipes.find(
       recipe =>
         recipe.id ===
         selectedRecipeId
     ) || null;
-
 
   const selectedIngredients =
     selectedRecipe
@@ -194,7 +164,6 @@ export default function RecipeLibrary({
             selectedRecipe.id
         )
       : [];
-
 
   async function createRecipe(
     event: FormEvent
@@ -304,7 +273,6 @@ export default function RecipeLibrary({
     );
   }
 
-
   async function toggleFavorite(
     recipe: Recipe
   ) {
@@ -339,7 +307,6 @@ export default function RecipeLibrary({
 
     await reload();
   }
-
 
   async function deleteRecipe(
     recipe: Recipe
@@ -382,7 +349,6 @@ export default function RecipeLibrary({
 
     await reload();
   }
-
 
   async function addIngredient(
     event: FormEvent
@@ -476,7 +442,6 @@ export default function RecipeLibrary({
     );
   }
 
-
   async function deleteIngredient(
     ingredient: RecipeIngredient
   ) {
@@ -504,7 +469,6 @@ export default function RecipeLibrary({
     await reload();
   }
 
-
   return (
     <div
       style={{
@@ -528,7 +492,6 @@ export default function RecipeLibrary({
           </p>
         </div>
       </div>
-
 
       <div
         style={{
@@ -569,7 +532,6 @@ export default function RecipeLibrary({
               </div>
             </div>
 
-
             <input
               value={
                 recipeName
@@ -583,7 +545,6 @@ export default function RecipeLibrary({
               placeholder="Chicken souvlaki bowls"
               required
             />
-
 
             <select
               value={
@@ -612,7 +573,6 @@ export default function RecipeLibrary({
               )}
             </select>
 
-
             <textarea
               rows={3}
               value={
@@ -627,7 +587,6 @@ export default function RecipeLibrary({
               placeholder="Optional notes, sides or prep instructions..."
             />
 
-
             <button
               className="btn"
               type="submit"
@@ -640,7 +599,6 @@ export default function RecipeLibrary({
                 : "+ Add recipe"}
             </button>
           </form>
-
 
           <div
             style={{
@@ -779,7 +737,6 @@ export default function RecipeLibrary({
           </div>
         </div>
 
-
         <div>
           {!selectedRecipe ? (
             <div
@@ -838,14 +795,16 @@ export default function RecipeLibrary({
                   )}
                 </div>
 
-
                 <div
                   style={{
                     display:
                       "flex",
 
                     gap:
-                      "8px"
+                      "8px",
+
+                    flexWrap:
+                      "wrap"
                   }}
                 >
                   <button
@@ -875,7 +834,6 @@ export default function RecipeLibrary({
                   </button>
                 </div>
               </div>
-
 
               <div
                 style={{
@@ -962,7 +920,6 @@ export default function RecipeLibrary({
                   </button>
                 </form>
 
-
                 {selectedIngredients.length ===
                 0 ? (
                   <p
@@ -1034,7 +991,6 @@ export default function RecipeLibrary({
           )}
         </div>
       </div>
-
 
       {message && (
         <div
