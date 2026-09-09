@@ -865,13 +865,29 @@ export default function DashboardShell() {
           font-weight: 600;
         }
 
-        .btn {
-          border: none;
-          border-radius: 9px;
-          padding: 10px 14px;
-          cursor: pointer;
-          font-weight: 600;
-        }
+.btn {
+  border: none;
+  border-radius: 9px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-weight: 700;
+  background: #1f2937;
+  color: #ffffff;
+}
+
+.btn:hover {
+  background: #111827;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn.secondary {
+  background: rgba(128, 128, 128, 0.15);
+  color: inherit;
+}
 
         .btn.secondary {
           background: rgba(128, 128, 128, 0.15);
