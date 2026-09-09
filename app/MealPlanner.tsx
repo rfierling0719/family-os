@@ -14,12 +14,20 @@ import {
   useFamily
 } from "./FamilyProvider";
 
+import RecipeLibrary, {
+  Recipe,
+  RecipeIngredient
+} from "./RecipeLibrary";
+
+
 type Meal = {
   id: string;
   meal_date: string;
   meal_name: string;
   notes: string | null;
+  recipe_id: string | null;
 };
+
 
 type Ingredient = {
   id: string;
@@ -29,6 +37,7 @@ type Ingredient = {
   category: string;
 };
 
+
 const categories = [
   "Produce",
   "Meat",
@@ -36,8 +45,10 @@ const categories = [
   "Bakery",
   "Pantry",
   "Frozen",
+  "Household",
   "Other"
 ];
+
 
 export default function MealPlanner() {
   const {
@@ -46,11 +57,13 @@ export default function MealPlanner() {
   } =
     useFamily();
 
+
   const [
     meals,
     setMeals
   ] =
     useState<Meal[]>([]);
+
 
   const [
     ingredients,
@@ -58,11 +71,29 @@ export default function MealPlanner() {
   ] =
     useState<Ingredient[]>([]);
 
+
+  const [
+    recipes,
+    setRecipes
+  ] =
+    useState<Recipe[]>([]);
+
+
+  const [
+    recipeIngredients,
+    setRecipeIngredients
+  ] =
+    useState<
+      RecipeIngredient[]
+    >([]);
+
+
   const [
     selectedDate,
     setSelectedDate
   ] =
     useState("");
+
 
   const [
     mealName,
@@ -70,11 +101,27 @@ export default function MealPlanner() {
   ] =
     useState("");
 
+
   const [
     notes,
     setNotes
   ] =
     useState("");
+
+
+  const [
+    selectedRecipeId,
+    setSelectedRecipeId
+  ] =
+    useState("");
+
+
+  const [
+    suggestedRecipeId,
+    setSuggestedRecipeId
+  ] =
+    useState("");
+
 
   const [
     ingredientName,
@@ -82,11 +129,13 @@ export default function MealPlanner() {
   ] =
     useState("");
 
+
   const [
     ingredientQuantity,
     setIngredientQuantity
   ] =
     useState("");
+
 
   const [
     ingredientCategory,
@@ -94,11 +143,13 @@ export default function MealPlanner() {
   ] =
     useState("Other");
 
+
   const [
     message,
     setMessage
   ] =
     useState("");
+
 
   const [
     savingMeal,
@@ -106,17 +157,34 @@ export default function MealPlanner() {
   ] =
     useState(false);
 
+
   const [
     addingIngredient,
     setAddingIngredient
   ] =
     useState(false);
 
+
   const [
     addingToShopping,
     setAddingToShopping
   ] =
     useState(false);
+
+
+  const [
+    applyingRecipe,
+    setApplyingRecipe
+  ] =
+    useState(false);
+
+
+  const [
+    planningWeek,
+    setPlanningWeek
+  ] =
+    useState(false);
+
 
   function dateValue(
     date: Date
@@ -143,6 +211,7 @@ export default function MealPlanner() {
     return `${year}-${month}-${day}`;
   }
 
+
   function getWeekDates() {
     const today =
       new Date();
@@ -151,9 +220,11 @@ export default function MealPlanner() {
       new Date(today);
 
     const difference =
-      today.getDay() === 0
+      today.getDay() ===
+      0
         ? -6
-        : 1 - today.getDay();
+        : 1 -
+          today.getDay();
 
     monday.setDate(
       monday.getDate() +
@@ -169,7 +240,9 @@ export default function MealPlanner() {
         index
       ) => {
         const date =
-          new Date(monday);
+          new Date(
+            monday
+          );
 
         date.setDate(
           monday.getDate() +
@@ -181,8 +254,10 @@ export default function MealPlanner() {
     );
   }
 
+
   const days =
     getWeekDates();
+
 
   async function loadData() {
     if (!householdId) {
@@ -199,55 +274,145 @@ export default function MealPlanner() {
         days[6]
       );
 
-    const {
-      data: mealData,
-      error: mealError
-    } =
-      await supabase
-        .from(
-          "meal_plans"
-        )
-        .select(
-          "id,meal_date,meal_name,notes"
-        )
-        .eq(
-          "household_id",
-          householdId
-        )
-        .gte(
-          "meal_date",
-          start
-        )
-        .lte(
-          "meal_date",
-          end
-        )
-        .order(
-          "meal_date"
-        );
 
-    if (mealError) {
+    const [
+      mealResult,
+      recipeResult,
+      recipeIngredientResult
+    ] =
+      await Promise.all([
+        supabase
+          .from(
+            "meal_plans"
+          )
+          .select(
+            "id,meal_date,meal_name,notes,recipe_id"
+          )
+          .eq(
+            "household_id",
+            householdId
+          )
+          .gte(
+            "meal_date",
+            start
+          )
+          .lte(
+            "meal_date",
+            end
+          )
+          .order(
+            "meal_date"
+          ),
+
+        supabase
+          .from(
+            "recipes"
+          )
+          .select(
+            "id,name,description,category,favorite"
+          )
+          .eq(
+            "household_id",
+            householdId
+          )
+          .order(
+            "favorite",
+            {
+              ascending:
+                false
+            }
+          )
+          .order(
+            "name"
+          ),
+
+        supabase
+          .from(
+            "recipe_ingredients"
+          )
+          .select(
+            "id,recipe_id,name,quantity,category"
+          )
+          .eq(
+            "household_id",
+            householdId
+          )
+      ]);
+
+
+    if (
+      mealResult.error
+    ) {
       console.error(
         "Unable to load meals:",
-        mealError
+        mealResult.error
       );
 
       setMessage(
-        `Unable to load meals: ${mealError.message}`
+        `Unable to load meals: ${mealResult.error.message}`
       );
 
       return;
     }
 
+
+    if (
+      recipeResult.error
+    ) {
+      console.error(
+        "Unable to load recipes:",
+        recipeResult.error
+      );
+
+      setMessage(
+        `Unable to load recipes: ${recipeResult.error.message}`
+      );
+
+      return;
+    }
+
+
+    if (
+      recipeIngredientResult.error
+    ) {
+      console.error(
+        "Unable to load recipe ingredients:",
+        recipeIngredientResult.error
+      );
+
+      setMessage(
+        `Unable to load recipe ingredients: ${recipeIngredientResult.error.message}`
+      );
+
+      return;
+    }
+
+
     const loadedMeals =
-      (mealData || []) as Meal[];
+      (mealResult.data ||
+        []) as Meal[];
+
 
     setMeals(
       loadedMeals
     );
 
+
+    setRecipes(
+      (recipeResult.data ||
+        []) as Recipe[]
+    );
+
+
+    setRecipeIngredients(
+      (recipeIngredientResult.data ||
+        []) as RecipeIngredient[]
+    );
+
+
     if (
-      loadedMeals.length === 0
+      loadedMeals.length ===
+      0
     ) {
       setIngredients(
         []
@@ -256,9 +421,13 @@ export default function MealPlanner() {
       return;
     }
 
+
     const {
-      data: ingredientData,
-      error: ingredientError
+      data:
+        ingredientData,
+
+      error:
+        ingredientError
     } =
       await supabase
         .from(
@@ -279,6 +448,7 @@ export default function MealPlanner() {
           )
         );
 
+
     if (
       ingredientError
     ) {
@@ -294,11 +464,13 @@ export default function MealPlanner() {
       return;
     }
 
+
     setIngredients(
       (ingredientData ||
         []) as Ingredient[]
     );
   }
+
 
   useEffect(() => {
     if (!householdId) {
@@ -307,10 +479,11 @@ export default function MealPlanner() {
 
     loadData();
 
+
     const channel =
       supabase
         .channel(
-          `meals-${householdId}`
+          `meal-planner-${householdId}`
         )
         .on(
           "postgres_changes",
@@ -342,7 +515,38 @@ export default function MealPlanner() {
             loadData();
           }
         )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema:
+              "public",
+            table:
+              "recipes",
+            filter:
+              `household_id=eq.${householdId}`
+          },
+          () => {
+            loadData();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema:
+              "public",
+            table:
+              "recipe_ingredients",
+            filter:
+              `household_id=eq.${householdId}`
+          },
+          () => {
+            loadData();
+          }
+        )
         .subscribe();
+
 
     return () => {
       supabase.removeChannel(
@@ -351,6 +555,7 @@ export default function MealPlanner() {
     };
   }, [householdId]);
 
+
   function selectedMeal() {
     return meals.find(
       meal =>
@@ -358,6 +563,7 @@ export default function MealPlanner() {
         selectedDate
     );
   }
+
 
   function chooseDay(
     date: Date
@@ -374,22 +580,33 @@ export default function MealPlanner() {
           value
       );
 
+
     setSelectedDate(
       value
     );
+
 
     setMealName(
       existing?.meal_name ||
         ""
     );
 
+
     setNotes(
       existing?.notes ||
         ""
     );
 
+
+    setSelectedRecipeId(
+      existing?.recipe_id ||
+        ""
+    );
+
+
     setMessage("");
   }
+
 
   async function saveMeal(
     event: FormEvent
@@ -397,6 +614,7 @@ export default function MealPlanner() {
     event.preventDefault();
 
     setMessage("");
+
 
     if (!session) {
       setMessage(
@@ -406,6 +624,7 @@ export default function MealPlanner() {
       return;
     }
 
+
     if (!householdId) {
       setMessage(
         "Your household could not be loaded."
@@ -413,6 +632,7 @@ export default function MealPlanner() {
 
       return;
     }
+
 
     if (!selectedDate) {
       setMessage(
@@ -422,6 +642,7 @@ export default function MealPlanner() {
       return;
     }
 
+
     if (!mealName.trim()) {
       setMessage(
         "Enter a meal name."
@@ -430,9 +651,11 @@ export default function MealPlanner() {
       return;
     }
 
+
     setSavingMeal(
       true
     );
+
 
     const {
       error
@@ -459,6 +682,9 @@ export default function MealPlanner() {
               notes.trim() ||
               null,
 
+            recipe_id:
+              null,
+
             updated_at:
               new Date().toISOString()
           },
@@ -467,6 +693,7 @@ export default function MealPlanner() {
               "household_id,meal_date"
           }
         );
+
 
     if (error) {
       console.error(
@@ -485,6 +712,11 @@ export default function MealPlanner() {
       return;
     }
 
+
+    setSelectedRecipeId(
+      ""
+    );
+
     setMessage(
       "Meal saved."
     );
@@ -496,6 +728,595 @@ export default function MealPlanner() {
     );
   }
 
+
+  async function copyRecipeToDate(
+    recipe: Recipe,
+    targetDate: string
+  ) {
+    if (
+      !session ||
+      !householdId
+    ) {
+      throw new Error(
+        "Household session is unavailable."
+      );
+    }
+
+
+    const {
+      data:
+        savedMeal,
+
+      error:
+        mealError
+    } =
+      await supabase
+        .from(
+          "meal_plans"
+        )
+        .upsert(
+          {
+            user_id:
+              session.user.id,
+
+            household_id:
+              householdId,
+
+            meal_date:
+              targetDate,
+
+            meal_name:
+              recipe.name,
+
+            notes:
+              recipe.description,
+
+            recipe_id:
+              recipe.id,
+
+            updated_at:
+              new Date().toISOString()
+          },
+          {
+            onConflict:
+              "household_id,meal_date"
+          }
+        )
+        .select(
+          "id"
+        )
+        .single();
+
+
+    if (mealError) {
+      throw new Error(
+        mealError.message
+      );
+    }
+
+
+    const mealPlanId =
+      savedMeal.id;
+
+
+    const {
+      error:
+        deleteError
+    } =
+      await supabase
+        .from(
+          "meal_ingredients"
+        )
+        .delete()
+        .eq(
+          "meal_plan_id",
+          mealPlanId
+        );
+
+
+    if (deleteError) {
+      throw new Error(
+        deleteError.message
+      );
+    }
+
+
+    const ingredientsForRecipe =
+      recipeIngredients.filter(
+        ingredient =>
+          ingredient.recipe_id ===
+          recipe.id
+      );
+
+
+    if (
+      ingredientsForRecipe.length >
+      0
+    ) {
+      const {
+        error:
+          ingredientError
+      } =
+        await supabase
+          .from(
+            "meal_ingredients"
+          )
+          .insert(
+            ingredientsForRecipe.map(
+              ingredient => ({
+                household_id:
+                  householdId,
+
+                meal_plan_id:
+                  mealPlanId,
+
+                name:
+                  ingredient.name,
+
+                quantity:
+                  ingredient.quantity,
+
+                category:
+                  ingredient.category
+              })
+            )
+          );
+
+
+      if (
+        ingredientError
+      ) {
+        throw new Error(
+          ingredientError.message
+        );
+      }
+    }
+  }
+
+
+  async function applySelectedRecipe() {
+    setMessage("");
+
+
+    if (!selectedDate) {
+      setMessage(
+        "Choose a day first."
+      );
+
+      return;
+    }
+
+
+    const recipe =
+      recipes.find(
+        item =>
+          item.id ===
+          selectedRecipeId
+      );
+
+
+    if (!recipe) {
+      setMessage(
+        "Choose a saved recipe first."
+      );
+
+      return;
+    }
+
+
+    setApplyingRecipe(
+      true
+    );
+
+
+    try {
+      await copyRecipeToDate(
+        recipe,
+        selectedDate
+      );
+
+
+      setMealName(
+        recipe.name
+      );
+
+
+      setNotes(
+        recipe.description ||
+          ""
+      );
+
+
+      setMessage(
+        `"${recipe.name}" added to the meal plan.`
+      );
+
+
+      await loadData();
+    } catch (error) {
+      console.error(
+        error
+      );
+
+      setMessage(
+        error instanceof
+          Error
+          ? `Unable to use recipe: ${error.message}`
+          : "Unable to use recipe."
+      );
+    }
+
+
+    setApplyingRecipe(
+      false
+    );
+  }
+
+
+  function getSuggestion() {
+    if (
+      recipes.length ===
+      0
+    ) {
+      setMessage(
+        "Add some recipes to your Recipe Library first."
+      );
+
+      return;
+    }
+
+
+    const recipesUsedThisWeek =
+      new Set(
+        meals
+          .map(
+            meal =>
+              meal.recipe_id
+          )
+          .filter(
+            Boolean
+          )
+      );
+
+
+    let available =
+      recipes.filter(
+        recipe =>
+          !recipesUsedThisWeek.has(
+            recipe.id
+          )
+      );
+
+
+    if (
+      available.length ===
+      0
+    ) {
+      available =
+        recipes;
+    }
+
+
+    const favoriteOptions =
+      available.filter(
+        recipe =>
+          recipe.favorite
+      );
+
+
+    const pool =
+      favoriteOptions.length >
+      0
+        ? [
+            ...available,
+            ...favoriteOptions
+          ]
+        : available;
+
+
+    const randomRecipe =
+      pool[
+        Math.floor(
+          Math.random() *
+            pool.length
+        )
+      ];
+
+
+    setSuggestedRecipeId(
+      randomRecipe.id
+    );
+
+    setMessage("");
+  }
+
+
+  async function useSuggestion() {
+    const recipe =
+      recipes.find(
+        item =>
+          item.id ===
+          suggestedRecipeId
+      );
+
+
+    if (!recipe) {
+      return;
+    }
+
+
+    let targetDate =
+      selectedDate;
+
+
+    if (!targetDate) {
+      const emptyDay =
+        days.find(
+          day =>
+            !meals.some(
+              meal =>
+                meal.meal_date ===
+                dateValue(
+                  day
+                )
+            )
+        );
+
+
+      if (!emptyDay) {
+        setMessage(
+          "Choose a day to replace with the suggested meal."
+        );
+
+        return;
+      }
+
+
+      targetDate =
+        dateValue(
+          emptyDay
+        );
+
+
+      setSelectedDate(
+        targetDate
+      );
+    }
+
+
+    setApplyingRecipe(
+      true
+    );
+
+
+    try {
+      await copyRecipeToDate(
+        recipe,
+        targetDate
+      );
+
+
+      setMealName(
+        recipe.name
+      );
+
+
+      setNotes(
+        recipe.description ||
+          ""
+      );
+
+
+      setSelectedRecipeId(
+        recipe.id
+      );
+
+
+      setMessage(
+        `"${recipe.name}" added to the week.`
+      );
+
+
+      await loadData();
+    } catch (error) {
+      setMessage(
+        error instanceof
+          Error
+          ? `Unable to add suggested meal: ${error.message}`
+          : "Unable to add suggested meal."
+      );
+    }
+
+
+    setApplyingRecipe(
+      false
+    );
+  }
+
+
+  function shuffleRecipes(
+    source:
+      Recipe[]
+  ) {
+    const shuffled =
+      [...source];
+
+
+    for (
+      let index =
+        shuffled.length -
+        1;
+      index > 0;
+      index--
+    ) {
+      const randomIndex =
+        Math.floor(
+          Math.random() *
+            (index + 1)
+        );
+
+
+      [
+        shuffled[index],
+        shuffled[randomIndex]
+      ] = [
+        shuffled[randomIndex],
+        shuffled[index]
+      ];
+    }
+
+
+    return shuffled;
+  }
+
+
+  async function planMyWeek() {
+    setMessage("");
+
+
+    if (
+      recipes.length ===
+      0
+    ) {
+      setMessage(
+        "Add some recipes to your Recipe Library first."
+      );
+
+      return;
+    }
+
+
+    const emptyDates =
+      days
+        .map(
+          day =>
+            dateValue(
+              day
+            )
+        )
+        .filter(
+          date =>
+            !meals.some(
+              meal =>
+                meal.meal_date ===
+                date
+            )
+        );
+
+
+    if (
+      emptyDates.length ===
+      0
+    ) {
+      setMessage(
+        "This week already has meals planned for every day."
+      );
+
+      return;
+    }
+
+
+    setPlanningWeek(
+      true
+    );
+
+
+    const alreadyUsed =
+      new Set(
+        meals
+          .map(
+            meal =>
+              meal.recipe_id
+          )
+          .filter(
+            Boolean
+          )
+      );
+
+
+    const unusedRecipes =
+      recipes.filter(
+        recipe =>
+          !alreadyUsed.has(
+            recipe.id
+          )
+      );
+
+
+    let pool =
+      shuffleRecipes(
+        unusedRecipes.length >
+          0
+          ? unusedRecipes
+          : recipes
+      );
+
+
+    try {
+      for (
+        let index = 0;
+        index <
+        emptyDates.length;
+        index++
+      ) {
+        if (
+          index > 0 &&
+          index %
+            pool.length ===
+            0
+        ) {
+          pool =
+            shuffleRecipes(
+              recipes
+            );
+        }
+
+
+        const recipe =
+          pool[
+            index %
+              pool.length
+          ];
+
+
+        await copyRecipeToDate(
+          recipe,
+          emptyDates[index]
+        );
+      }
+
+
+      setMessage(
+        `${emptyDates.length} meal${
+          emptyDates.length ===
+          1
+            ? ""
+            : "s"
+        } planned for the week. Existing meals were left unchanged.`
+      );
+
+
+      await loadData();
+    } catch (error) {
+      console.error(
+        error
+      );
+
+      setMessage(
+        error instanceof
+          Error
+          ? `Unable to finish planning the week: ${error.message}`
+          : "Unable to finish planning the week."
+      );
+    }
+
+
+    setPlanningWeek(
+      false
+    );
+  }
+
+
   async function addIngredient(
     event: FormEvent
   ) {
@@ -503,8 +1324,10 @@ export default function MealPlanner() {
 
     setMessage("");
 
+
     const meal =
       selectedMeal();
+
 
     if (!householdId) {
       setMessage(
@@ -514,6 +1337,7 @@ export default function MealPlanner() {
       return;
     }
 
+
     if (!meal) {
       setMessage(
         "Save the meal first."
@@ -521,6 +1345,7 @@ export default function MealPlanner() {
 
       return;
     }
+
 
     if (
       !ingredientName.trim()
@@ -532,9 +1357,11 @@ export default function MealPlanner() {
       return;
     }
 
+
     setAddingIngredient(
       true
     );
+
 
     const {
       error
@@ -561,6 +1388,7 @@ export default function MealPlanner() {
             ingredientCategory
         });
 
+
     if (error) {
       console.error(
         "Unable to add ingredient:",
@@ -578,17 +1406,13 @@ export default function MealPlanner() {
       return;
     }
 
-    setIngredientName(
-      ""
-    );
 
-    setIngredientQuantity(
-      ""
-    );
-
+    setIngredientName("");
+    setIngredientQuantity("");
     setIngredientCategory(
       "Other"
     );
+
 
     await loadData();
 
@@ -597,10 +1421,12 @@ export default function MealPlanner() {
     );
   }
 
+
   async function deleteIngredient(
     id: string
   ) {
     setMessage("");
+
 
     const {
       error
@@ -615,12 +1441,8 @@ export default function MealPlanner() {
           id
         );
 
-    if (error) {
-      console.error(
-        "Unable to delete ingredient:",
-        error
-      );
 
+    if (error) {
       setMessage(
         `Unable to delete ingredient: ${error.message}`
       );
@@ -628,14 +1450,18 @@ export default function MealPlanner() {
       return;
     }
 
+
     await loadData();
   }
+
 
   async function addIngredientsToShopping() {
     setMessage("");
 
+
     const meal =
       selectedMeal();
+
 
     if (!meal) {
       setMessage(
@@ -645,6 +1471,7 @@ export default function MealPlanner() {
       return;
     }
 
+
     if (!session) {
       setMessage(
         "You are not signed in."
@@ -652,6 +1479,7 @@ export default function MealPlanner() {
 
       return;
     }
+
 
     if (!householdId) {
       setMessage(
@@ -661,6 +1489,7 @@ export default function MealPlanner() {
       return;
     }
 
+
     const mealIngredients =
       ingredients.filter(
         ingredient =>
@@ -668,8 +1497,10 @@ export default function MealPlanner() {
           meal.id
       );
 
+
     if (
-      mealIngredients.length === 0
+      mealIngredients.length ===
+      0
     ) {
       setMessage(
         "Add ingredients first."
@@ -678,9 +1509,11 @@ export default function MealPlanner() {
       return;
     }
 
+
     setAddingToShopping(
       true
     );
+
 
     const {
       error
@@ -713,12 +1546,8 @@ export default function MealPlanner() {
           )
         );
 
-    if (error) {
-      console.error(
-        "Unable to add ingredients to shopping:",
-        error
-      );
 
+    if (error) {
       setMessage(
         `Unable to add ingredients to Shopping: ${error.message}`
       );
@@ -730,21 +1559,26 @@ export default function MealPlanner() {
       return;
     }
 
+
     setMessage(
       `${mealIngredients.length} ingredient${
-        mealIngredients.length === 1
+        mealIngredients.length ===
+        1
           ? ""
           : "s"
       } added to Shopping.`
     );
+
 
     setAddingToShopping(
       false
     );
   }
 
+
   const currentMeal =
     selectedMeal();
+
 
   const currentIngredients =
     currentMeal
@@ -754,6 +1588,15 @@ export default function MealPlanner() {
             currentMeal.id
         )
       : [];
+
+
+  const suggestedRecipe =
+    recipes.find(
+      recipe =>
+        recipe.id ===
+        suggestedRecipeId
+    ) || null;
+
 
   return (
     <div>
@@ -766,12 +1609,277 @@ export default function MealPlanner() {
           </h2>
 
           <p>
-            Plan dinner and send
-            ingredients directly to
-            Shopping.
+            Plan dinner manually,
+            choose from your recipes,
+            or let Family OS build
+            the week.
           </p>
         </div>
+
+
+        <button
+          className="btn"
+          type="button"
+          onClick={
+            planMyWeek
+          }
+          disabled={
+            planningWeek ||
+            recipes.length ===
+              0
+          }
+        >
+          {planningWeek
+            ? "Planning..."
+            : "✦ Plan my week"}
+        </button>
       </div>
+
+
+      <div
+        style={{
+          display:
+            "grid",
+
+          gridTemplateColumns:
+            "minmax(0, 1fr) minmax(260px, 0.38fr)",
+
+          gap:
+            "16px",
+
+          marginTop:
+            "20px"
+        }}
+      >
+        <div
+          style={{
+            padding:
+              "16px",
+
+            border:
+              "1px solid var(--border)",
+
+            borderRadius:
+              "var(--radius-md)",
+
+            background:
+              "var(--surface-soft)"
+          }}
+        >
+          <div
+            className="section-header"
+          >
+            <div>
+              <h3>
+                Choose from your
+                recipes
+              </h3>
+
+              <div
+                className="muted-small"
+              >
+                Select a day below,
+                then pick one of your
+                saved recipes.
+              </div>
+            </div>
+          </div>
+
+
+          <div
+            style={{
+              display:
+                "grid",
+
+              gridTemplateColumns:
+                "minmax(0, 1fr) auto",
+
+              gap:
+                "10px",
+
+              marginTop:
+                "12px"
+            }}
+          >
+            <select
+              value={
+                selectedRecipeId
+              }
+              onChange={
+                event =>
+                  setSelectedRecipeId(
+                    event.target.value
+                  )
+              }
+            >
+              <option
+                value=""
+              >
+                Select a saved recipe...
+              </option>
+
+              {recipes.map(
+                recipe => (
+                  <option
+                    key={
+                      recipe.id
+                    }
+                    value={
+                      recipe.id
+                    }
+                  >
+                    {recipe.favorite
+                      ? "★ "
+                      : ""}
+                    {
+                      recipe.name
+                    }
+                  </option>
+                )
+              )}
+            </select>
+
+
+            <button
+              className="btn"
+              type="button"
+              disabled={
+                !selectedDate ||
+                !selectedRecipeId ||
+                applyingRecipe
+              }
+              onClick={
+                applySelectedRecipe
+              }
+            >
+              {applyingRecipe
+                ? "Adding..."
+                : "Use recipe"}
+            </button>
+          </div>
+        </div>
+
+
+        <div
+          style={{
+            padding:
+              "16px",
+
+            border:
+              "1px solid var(--border)",
+
+            borderRadius:
+              "var(--radius-md)",
+
+            background:
+              "var(--accent-soft)"
+          }}
+        >
+          <div
+            className="muted-small"
+            style={{
+              fontWeight:
+                700,
+
+              textTransform:
+                "uppercase",
+
+              letterSpacing:
+                "0.05em"
+            }}
+          >
+            Meal suggestion
+          </div>
+
+
+          {suggestedRecipe ? (
+            <>
+              <h3
+                style={{
+                  margin:
+                    "7px 0 4px"
+                }}
+              >
+                {
+                  suggestedRecipe.name
+                }
+              </h3>
+
+              {suggestedRecipe.description && (
+                <p
+                  style={{
+                    margin:
+                      "0 0 12px",
+
+                    fontSize:
+                      "12px"
+                  }}
+                >
+                  {
+                    suggestedRecipe.description
+                  }
+                </p>
+              )}
+
+
+              <div
+                style={{
+                  display:
+                    "flex",
+
+                  gap:
+                    "8px",
+
+                  flexWrap:
+                    "wrap"
+                }}
+              >
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={
+                    useSuggestion
+                  }
+                  disabled={
+                    applyingRecipe
+                  }
+                >
+                  Use this meal
+                </button>
+
+                <button
+                  className="btn secondary"
+                  type="button"
+                  onClick={
+                    getSuggestion
+                  }
+                >
+                  Suggest another
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={
+                getSuggestion
+              }
+              disabled={
+                recipes.length ===
+                0
+              }
+              style={{
+                marginTop:
+                  "10px"
+              }}
+            >
+              ✦ Suggest a meal
+            </button>
+          )}
+        </div>
+      </div>
+
 
       <div
         className="meal-week-grid"
@@ -783,12 +1891,14 @@ export default function MealPlanner() {
                 date
               );
 
+
             const meal =
               meals.find(
                 item =>
                   item.meal_date ===
                   value
               );
+
 
             return (
               <button
@@ -845,6 +1955,7 @@ export default function MealPlanner() {
         )}
       </div>
 
+
       {selectedDate && (
         <div
           className="meal-editor-grid"
@@ -859,6 +1970,7 @@ export default function MealPlanner() {
               Dinner
             </h3>
 
+
             <input
               value={
                 mealName
@@ -866,13 +1978,13 @@ export default function MealPlanner() {
               onChange={
                 event =>
                   setMealName(
-                    event.target
-                      .value
+                    event.target.value
                   )
               }
               placeholder="Chicken Mediterranean bowls"
               required
             />
+
 
             <textarea
               value={
@@ -881,13 +1993,13 @@ export default function MealPlanner() {
               onChange={
                 event =>
                   setNotes(
-                    event.target
-                      .value
+                    event.target.value
                   )
               }
               rows={3}
               placeholder="Sides, prep notes..."
             />
+
 
             <button
               className="btn"
@@ -901,6 +2013,7 @@ export default function MealPlanner() {
                 : "Save meal"}
             </button>
           </form>
+
 
           <div
             className="form-card"
@@ -917,11 +2030,13 @@ export default function MealPlanner() {
                   className="muted-small"
                 >
                   {currentIngredients.length} ingredient
-                  {currentIngredients.length === 1
+                  {currentIngredients.length ===
+                  1
                     ? ""
                     : "s"}
                 </div>
               </div>
+
 
               {currentIngredients.length >
                 0 && (
@@ -942,10 +2057,12 @@ export default function MealPlanner() {
               )}
             </div>
 
+
             {!currentMeal ? (
               <p>
-                Save the meal first,
-                then add ingredients.
+                Save the meal or use
+                a recipe first, then
+                add ingredients.
               </p>
             ) : (
               <>
@@ -962,13 +2079,13 @@ export default function MealPlanner() {
                     onChange={
                       event =>
                         setIngredientName(
-                          event.target
-                            .value
+                          event.target.value
                         )
                     }
                     placeholder="Ingredient"
                     required
                   />
+
 
                   <input
                     value={
@@ -977,12 +2094,12 @@ export default function MealPlanner() {
                     onChange={
                       event =>
                         setIngredientQuantity(
-                          event.target
-                            .value
+                          event.target.value
                         )
                     }
                     placeholder="Qty"
                   />
+
 
                   <select
                     value={
@@ -991,8 +2108,7 @@ export default function MealPlanner() {
                     onChange={
                       event =>
                         setIngredientCategory(
-                          event.target
-                            .value
+                          event.target.value
                         )
                     }
                   >
@@ -1006,11 +2122,14 @@ export default function MealPlanner() {
                             item
                           }
                         >
-                          {item}
+                          {
+                            item
+                          }
                         </option>
                       )
                     )}
                   </select>
+
 
                   <button
                     className="btn"
@@ -1025,6 +2144,7 @@ export default function MealPlanner() {
                   </button>
                 </form>
 
+
                 {currentIngredients.length ===
                 0 ? (
                   <p
@@ -1034,8 +2154,8 @@ export default function MealPlanner() {
                         "12px"
                     }}
                   >
-                    No ingredients added
-                    yet.
+                    No ingredients
+                    added yet.
                   </p>
                 ) : (
                   currentIngredients.map(
@@ -1069,6 +2189,7 @@ export default function MealPlanner() {
                           </div>
                         </div>
 
+
                         <button
                           className="icon-button"
                           type="button"
@@ -1090,6 +2211,7 @@ export default function MealPlanner() {
         </div>
       )}
 
+
       {message && (
         <div
           className="status-message"
@@ -1097,6 +2219,19 @@ export default function MealPlanner() {
           {message}
         </div>
       )}
+
+
+      <RecipeLibrary
+        recipes={
+          recipes
+        }
+        ingredients={
+          recipeIngredients
+        }
+        reload={
+          loadData
+        }
+      />
     </div>
   );
 }
